@@ -1,4 +1,4 @@
-# No Enderman Grief (Fabric)
+# Enderman Grief Control (Fabric)
 
 Every mob can be spawn-proofed and optimized around — except endermen. They teleport straight through spawn-proofing into hidden pockets (deep underground, inside your base), and the moment one picks up a block, it sticks around far longer than it should, quietly eating into the mob cap and tanking spawn rates on any mob farm nearby. (And yes, they also just grief your builds overnight.)
 
@@ -7,7 +7,7 @@ This Fabric mod fixes that at the source, for Minecraft 1.21 singleplayer worlds
 ## Installation
 
 1. Requires [Fabric Loader](https://fabricmc.net/use/) (0.19.3+) and Minecraft 1.21.
-2. No Fabric API dependency required — this mod only uses `ModInitializer` and Mixin, both provided by Fabric Loader itself.
+2. No Fabric API dependency required.
 3. Drop the built jar into your `.minecraft/mods/` folder (or your server's `mods/` folder) and launch.
 
 ## How it works
@@ -26,9 +26,22 @@ Enderman block pickup and placement are each governed by a private AI goal insid
 ```
 
 - `enabled` — whether enderman block pickup/placement is prevented.
-- `loggingEnabled` — announce every prevented pickup/placement, both in the log file and as a short, color-coded chat message (e.g. `[NoEndermanGrief] Denied pickup at (10, -60, -13).`), so it's visible without checking logs.
+- `loggingEnabled` — announce every prevented pickup/placement, both in the log file and as a short, color-coded chat message (e.g. `[Enderman] Denied pickup at (10, -60, -13).`), so it's visible without checking logs.
 
-There's no per-world setting (unlike the Paper plugin) — singleplayer doesn't have Bukkit's multi-world-folder concept, so a single global toggle covers it. There's also no in-game reload command in this version; edit the file and restart, or add one later via Fabric's command registration if that turns out to matter in practice.
+There's no per-world setting (unlike the Paper plugin) — singleplayer doesn't have Bukkit's multi-world-folder concept, so a single global toggle covers it.
+
+Both settings apply live, no restart needed, two ways: the `/enderman` command below (works everywhere, including dedicated servers), or — singleplayer/self-host only, since it can't reach a separate dedicated server — [Mod Menu](https://modrinth.com/mod/modmenu)'s settings screen for this mod, if installed.
+
+## Commands & permission
+
+All subcommands live under `/enderman` and require permission level 2 (op). Tab-completion is available at every argument position.
+
+| Command | Does |
+|---|---|
+| `/enderman reload` | Reloads `config/no-enderman-grief.json` from disk |
+| `/enderman status` | Shows the current `enabled`/logging state |
+| `/enderman toggle [true\|false]` | Sets (or flips, if no value given) `enabled`, persisted to disk |
+| `/enderman set logging <true\|false>` | Changes `loggingEnabled`, persisted to disk |
 
 ## A note on maintenance
 
@@ -43,12 +56,16 @@ No MockBukkit-equivalent testing framework exists for Mixin-based mods at this s
 - [ ] Set `enabled: false` in `config/no-enderman-grief.json`, restart — confirm vanilla griefing behavior resumes.
 - [ ] Confirm other `mobGriefing`-gated behavior is unaffected: creepers still destroy terrain, villagers still farm.
 - [ ] With `loggingEnabled: true`, confirm a color-coded message appears in chat and the same message appears in the log file (`logs/latest.log`) for each prevented pickup/placement; with `false`, confirm both stay silent.
+- [ ] With Mod Menu installed, open its settings screen for this mod, toggle both settings, and confirm the change to enderman behavior applies immediately (no restart, no reopening the world).
+- [ ] Without Mod Menu installed, confirm the game still launches normally (the integration is compile-time only and must not be required).
+- [ ] Run `/enderman status`, `/enderman toggle false`, `/enderman set logging true`, confirming tab-completion at every argument position and that `config/no-enderman-grief.json` reflects each change on disk.
+- [ ] Hand-edit `config/no-enderman-grief.json` externally, then run `/enderman reload` — confirm the change takes effect without restarting.
 
 ## Building from source
 
 ```bash
-git clone https://github.com/Jack-Underhill/No-Enderman-Grief.git
-cd No-Enderman-Grief/fabric-mod
+git clone https://github.com/Jack-Underhill/Enderman-Grief-Control.git
+cd Enderman-Grief-Control/fabric-mod
 ./gradlew build
 ```
 

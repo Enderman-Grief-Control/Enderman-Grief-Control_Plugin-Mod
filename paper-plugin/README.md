@@ -77,7 +77,7 @@ In this example: enabled in `world` and `world_the_end`, disabled in `world_neth
 [EndermanGriefControl] Denied pickup at (10, 64, -30).
 ```
 
-This matches the message the [Fabric mod](../fabric-mod/) shows in chat, if you use both.
+The [Fabric mod](../fabric-mod/) shows a similarly short, prefixed message in chat, if you use both.
 
 ## Commands & permission
 

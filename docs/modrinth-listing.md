@@ -48,7 +48,7 @@ Use the Versions tab to download the build that matches your Minecraft version.
 
 - Singleplayer and dedicated server support
 - Optional logging
-- No Fabric API required
+- In-game `/enderman` command and optional Mod Menu screen for changing settings live, no restart
 
 ## Installation
 
@@ -81,7 +81,7 @@ After making changes, reload the configuration with the plugin's reload command 
 
 Configuration is located at: `config/no-enderman-grief.json`
 
-After making changes, restart the game or server for them to take effect.
+Changes apply live, no restart needed, two ways: the in-game `/enderman` command (`reload`, `status`, `toggle`, `set logging`), which works everywhere including dedicated servers; or, in singleplayer/self-hosted worlds only, [Mod Menu](https://modrinth.com/mod/modmenu)'s settings screen for this mod, if installed.
 
 For a full reference of available configuration options, see the [GitHub documentation](https://github.com/Jack-Underhill/Enderman-Grief-Control).
 

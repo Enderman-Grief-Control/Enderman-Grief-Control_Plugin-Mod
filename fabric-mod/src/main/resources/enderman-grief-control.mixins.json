@@ -1,6 +1,6 @@
 {
 	"required": true,
-	"package": "noendermangrief.fabric.mixin",
+	"package": "endermangriefcontrol.fabric.mixin",
 	"compatibilityLevel": "JAVA_21",
 	"mixins": ["EndermanTakeBlockGoalMixin", "EndermanLeaveBlockGoalMixin"],
 	"injectors": {

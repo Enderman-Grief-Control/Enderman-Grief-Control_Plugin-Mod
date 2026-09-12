@@ -1,29 +1,37 @@
-package noendermangrief.fabric;
+package endermangriefcontrol.fabric;
 
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.monster.EnderMan;
+import endermangriefcontrol.fabric.command.EndermanCommand;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public final class NoEndermanGriefMod implements ModInitializer {
+public final class EndermanGriefControlMod implements ModInitializer {
 
     public static final String MOD_ID = "no-enderman-grief";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
-    private static NoEndermanGriefConfig config;
+    private static EndermanGriefControlConfig config;
 
     @Override
     public void onInitialize() {
-        config = NoEndermanGriefConfig.load();
-        LOGGER.info("NoEndermanGrief has been initialized.");
+        config = EndermanGriefControlConfig.load();
+        CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
+                EndermanCommand.register(dispatcher));
+        LOGGER.info("EndermanGriefControl has been initialized.");
     }
 
-    public static NoEndermanGriefConfig getConfig() {
+    public static EndermanGriefControlConfig getConfig() {
         return config;
+    }
+
+    public static void setConfig(EndermanGriefControlConfig newConfig) {
+        config = newConfig;
     }
 
     /**
@@ -38,10 +46,10 @@ public final class NoEndermanGriefMod implements ModInitializer {
 
         String coords = "(" + enderman.getBlockX() + ", " + enderman.getBlockY() + ", " + enderman.getBlockZ() + ")";
 
-        LOGGER.info("[NoEndermanGrief] Denied " + action + " at " + coords + ".");
+        LOGGER.info("[Enderman] Denied " + action + " at " + coords + ".");
 
         if (enderman.level() instanceof ServerLevel serverLevel) {
-            MutableComponent chatMessage = Component.literal("[NoEndermanGrief] ")
+            MutableComponent chatMessage = Component.literal("[Enderman] ")
                     .withStyle(ChatFormatting.LIGHT_PURPLE)
                     .append(Component.literal("Denied " + action + " at ")
                             .withStyle(ChatFormatting.GRAY))

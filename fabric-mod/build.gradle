@@ -12,14 +12,33 @@ base {
 	archivesName = "EndermanGriefControl-mc_${project.minecraft_version}-fabric"
 }
 
+repositories {
+	maven {
+		name = 'TerraformersMC'
+		url = 'https://maven.terraformersmc.com/releases/'
+	}
+}
+
 dependencies {
 	// To change the versions see the gradle.properties file
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
 	mappings loom.officialMojangMappings()
 	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
-	// No Fabric API dependency: this mod only needs ModInitializer and Mixin,
-	// both provided by fabric-loader itself, to keep the install footprint minimal.
+	// The core grief-prevention feature only needs ModInitializer and Mixin, both provided
+	// by fabric-loader itself, to keep the install footprint minimal. Two small additions
+	// on top of that baseline:
+
+	// Mod Menu integration is optional and compile-time only: if a player doesn't have Mod
+	// Menu installed, this entrypoint is simply never invoked, so it's not a hard dependency.
+	modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
+
+	// The in-game command needs a registration hook, which vanilla Fabric Loader doesn't
+	// expose on its own. fabric-command-api-v2 is a small, focused module (not the full
+	// Fabric API umbrella jar) purpose-built for this. `include` bundles it (jar-in-jar)
+	// into our own output jar, so players don't have to separately install Fabric API.
+	modImplementation "net.fabricmc.fabric-api:fabric-command-api-v2:${project.fabric_command_api_v2_version}"
+	include "net.fabricmc.fabric-api:fabric-command-api-v2:${project.fabric_command_api_v2_version}"
 }
 
 processResources {

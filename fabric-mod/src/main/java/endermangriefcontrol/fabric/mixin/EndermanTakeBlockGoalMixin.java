@@ -1,6 +1,6 @@
-package noendermangrief.fabric.mixin;
+package endermangriefcontrol.fabric.mixin;
 
-import noendermangrief.fabric.NoEndermanGriefMod;
+import endermangriefcontrol.fabric.EndermanGriefControlMod;
 import net.minecraft.world.entity.monster.EnderMan;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -22,9 +22,9 @@ public abstract class EndermanTakeBlockGoalMixin {
 
     @Inject(method = "canUse", at = @At("RETURN"), cancellable = true)
     private void noEndermanGrief$preventPickup(CallbackInfoReturnable<Boolean> cir) {
-        if (cir.getReturnValueZ() && NoEndermanGriefMod.getConfig().enabled) {
+        if (cir.getReturnValueZ() && EndermanGriefControlMod.getConfig().enabled) {
             cir.setReturnValue(false);
-            NoEndermanGriefMod.announceBlocked(this.enderman, "pickup");
+            EndermanGriefControlMod.announceBlocked(this.enderman, "pickup");
         }
     }
 }
