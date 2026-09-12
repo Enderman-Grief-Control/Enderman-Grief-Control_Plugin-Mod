@@ -1,6 +1,7 @@
 package endermangriefcontrol.heldblock;
 
 import endermangriefcontrol.EndermanGriefControlPlugin;
+import endermangriefcontrol.debug.TestModeLogger;
 import org.bukkit.World;
 import org.bukkit.entity.Enderman;
 import org.bukkit.entity.Entity;
@@ -19,24 +20,82 @@ import java.util.UUID;
  * Finds and resolves endermen that are stuck holding a block placement can no longer clear (e.g.
  * picked up before the plugin was enabled, or during a window where it was toggled off).
  *
- * Detection is fully demand-driven: a discovery scan (over currently loaded endermen only — an
- * unloaded holder isn't contributing to any mob cap either, so there's nothing to miss) seeds a
- * set of known-holder UUIDs, and a resolution pass re-checks only that set on a fixed interval.
- * The resolution task only runs while the set is non-empty, so nothing ticks in the background
- * when there's nothing to track. A UUID is only ever removed explicitly (resolved via clearing,
- * or the enderman died) — never inferred from a lookup miss, since that's ambiguous between
- * "unloaded" and "dead."
+ * Discovery can't just run once at plugin enable or on a settings change, because at that instant
+ * no player has necessarily loaded the chunks a legacy holder sits in yet (a scan there can come
+ * back empty even though the world is otherwise fine) - but those two events are still the right
+ * moments to *want* an instant result, since whoever triggered them is typically already online to
+ * see it. So each is handled by {@link #armPendingDiscovery()}: run immediately if a player's
+ * already online, otherwise poll every few seconds until one is, then run once and stop polling.
+ * Separately, a slower periodic pass re-scans and resolves on a fixed interval for the entire
+ * plugin lifetime regardless of that - it's the backstop for holders that only become findable long
+ * after startup (a relocated base, a chunk that unloaded and reloaded, etc). A UUID is only ever
+ * removed explicitly (resolved via clearing, or the enderman died) — never inferred from a lookup
+ * miss, since that's ambiguous between "unloaded" and "dead."
  */
 public final class HeldBlockMonitor implements Listener {
 
-    private static final long RESOLUTION_PERIOD_TICKS = 20L * 60 * 2; // 2 minutes
+    private static final long TICKS_PER_SECOND = 20L;
+    private static final long RESOLUTION_PERIOD_SECONDS = 60 * 2;
+    private static final long RESOLUTION_PERIOD_TICKS = TICKS_PER_SECOND * RESOLUTION_PERIOD_SECONDS;
+    private static final long ELIGIBILITY_POLL_PERIOD_SECONDS = 5;
+    private static final long ELIGIBILITY_POLL_PERIOD_TICKS = TICKS_PER_SECOND * ELIGIBILITY_POLL_PERIOD_SECONDS;
 
     private final EndermanGriefControlPlugin plugin;
     private final Set<UUID> knownHolders = new HashSet<>();
-    private BukkitTask resolutionTask;
+    private BukkitTask eligibilityPollTask;
 
     public HeldBlockMonitor(EndermanGriefControlPlugin plugin) {
         this.plugin = plugin;
+    }
+
+    /**
+     * Starts the periodic discovery+resolution cycle. Called once from the plugin's onEnable().
+     */
+    public void start() {
+        armPendingDiscovery();
+        plugin.getServer().getScheduler().runTaskTimer(
+                plugin, this::runDiscoveryAndResolutionPass, RESOLUTION_PERIOD_TICKS, RESOLUTION_PERIOD_TICKS);
+    }
+
+    void runDiscoveryAndResolutionPass() {
+        runDiscoveryScan();
+        runResolutionPass();
+    }
+
+    /**
+     * Requests a discovery scan for "as soon as it can actually find anything" rather than right
+     * now: runs immediately if a player is already online (true for basically every settings-change
+     * call site, since an admin has to be connected to trigger one), otherwise arms a short poll -
+     * every {@value #ELIGIBILITY_POLL_PERIOD_SECONDS}s - that fires the scan the moment a player
+     * joins, then stops. Calling this again while a poll is already armed is a no-op; it doesn't
+     * start a second one.
+     */
+    public void armPendingDiscovery() {
+        if (!plugin.getServer().getOnlinePlayers().isEmpty()) {
+            TestModeLogger.log("armPendingDiscovery: player already online, running discovery now.");
+            runDiscoveryScan();
+            return;
+        }
+
+        if (eligibilityPollTask != null) {
+            TestModeLogger.log("armPendingDiscovery: eligibility poll already in progress, no-op.");
+            return;
+        }
+
+        TestModeLogger.log("armPendingDiscovery: no player online yet, starting eligibility poll.");
+        eligibilityPollTask = plugin.getServer().getScheduler().runTaskTimer(
+                plugin, this::pollEligibility, ELIGIBILITY_POLL_PERIOD_TICKS, ELIGIBILITY_POLL_PERIOD_TICKS);
+    }
+
+    private void pollEligibility() {
+        if (plugin.getServer().getOnlinePlayers().isEmpty()) {
+            return;
+        }
+
+        TestModeLogger.log("armPendingDiscovery: eligibility poll succeeded, running discovery.");
+        runDiscoveryScan();
+        eligibilityPollTask.cancel();
+        eligibilityPollTask = null;
     }
 
     /**
@@ -45,17 +104,16 @@ public final class HeldBlockMonitor implements Listener {
      * it could just mean unloaded.
      */
     public void runDiscoveryScan() {
+        int foundThisPass = 0;
         for (World world : plugin.getServer().getWorlds()) {
             for (Enderman enderman : world.getEntitiesByClass(Enderman.class)) {
-                if (enderman.getCarriedBlock() != null) {
-                    knownHolders.add(enderman.getUniqueId());
+                if (enderman.getCarriedBlock() != null && knownHolders.add(enderman.getUniqueId())) {
+                    foundThisPass++;
                 }
             }
         }
-
-        if (!knownHolders.isEmpty()) {
-            ensureResolutionTaskRunning();
-        }
+        TestModeLogger.log("Discovery scan ran, found " + foundThisPass + " new holder(s) ("
+                + knownHolders.size() + " tracked total).");
     }
 
     /**
@@ -64,6 +122,10 @@ public final class HeldBlockMonitor implements Listener {
      * the set as-is; it'll resolve itself once that chunk loads again.
      */
     void runResolutionPass() {
+        int resolved = 0;
+        int alerted = 0;
+        int leftUntouched = 0;
+
         Iterator<UUID> iterator = knownHolders.iterator();
         while (iterator.hasNext()) {
             UUID id = iterator.next();
@@ -76,21 +138,22 @@ public final class HeldBlockMonitor implements Listener {
             }
 
             switch (plugin.getHeldBlockHandling(enderman.getWorld().getName())) {
-                case ALERT -> plugin.logHeldBlockAlert(enderman);
+                case ALERT -> {
+                    plugin.logHeldBlockAlert(enderman);
+                    alerted++;
+                }
                 case AUTO_CLEAR -> {
                     enderman.setCarriedBlock(null);
                     plugin.logHeldBlockCleared(enderman);
                     iterator.remove();
+                    resolved++;
                 }
-                case OFF -> {
-                    // Leave it tracked and untouched; picked up again if the mode later changes.
-                }
+                case OFF -> leftUntouched++; // Leave it tracked and untouched; picked up again if the mode later changes.
             }
         }
 
-        if (knownHolders.isEmpty()) {
-            stopResolutionTask();
-        }
+        TestModeLogger.log("Resolution pass ran: " + resolved + " resolved, " + alerted + " alerted, "
+                + leftUntouched + " left untouched.");
     }
 
     @EventHandler
@@ -100,25 +163,7 @@ public final class HeldBlockMonitor implements Listener {
         }
     }
 
-    private void ensureResolutionTaskRunning() {
-        if (resolutionTask == null) {
-            resolutionTask = plugin.getServer().getScheduler().runTaskTimer(
-                    plugin, this::runResolutionPass, RESOLUTION_PERIOD_TICKS, RESOLUTION_PERIOD_TICKS);
-        }
-    }
-
-    private void stopResolutionTask() {
-        if (resolutionTask != null) {
-            resolutionTask.cancel();
-            resolutionTask = null;
-        }
-    }
-
     public boolean isTrackingAnyHolder() {
         return !knownHolders.isEmpty();
-    }
-
-    public boolean isResolutionTaskRunning() {
-        return resolutionTask != null;
     }
 }

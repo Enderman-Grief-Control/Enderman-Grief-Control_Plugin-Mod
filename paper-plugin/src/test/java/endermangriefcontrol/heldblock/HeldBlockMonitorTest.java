@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.logging.Handler;
 import java.util.logging.LogRecord;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -61,13 +62,12 @@ class HeldBlockMonitorTest {
     }
 
     @Test
-    void discoveryScan_findsHolder_startsResolutionTracking() {
+    void discoveryScan_findsHolder_startsTracking() {
         spawnHolder();
 
         monitor.runDiscoveryScan();
 
         assertTrue(monitor.isTrackingAnyHolder());
-        assertTrue(monitor.isResolutionTaskRunning());
     }
 
     @Test
@@ -75,7 +75,52 @@ class HeldBlockMonitorTest {
         monitor.runDiscoveryScan();
 
         assertFalse(monitor.isTrackingAnyHolder());
-        assertFalse(monitor.isResolutionTaskRunning());
+    }
+
+    @Test
+    void discoveryScan_calledAgainLater_stillFindsPreExistingHolder() {
+        // Regression test: discovery must not be a one-shot - a holder that only becomes visible
+        // (chunk loaded) after the first scan must still be picked up by a later scan.
+        monitor.runDiscoveryScan();
+        assertFalse(monitor.isTrackingAnyHolder());
+
+        spawnHolder();
+        monitor.runDiscoveryScan();
+
+        assertTrue(monitor.isTrackingAnyHolder());
+    }
+
+    @Test
+    void armPendingDiscovery_playerOnline_runsDiscoveryImmediately() {
+        server.addPlayer();
+        spawnHolder();
+
+        monitor.armPendingDiscovery();
+
+        assertTrue(monitor.isTrackingAnyHolder());
+    }
+
+    @Test
+    void armPendingDiscovery_noPlayerOnline_waitsThenFindsHolderOncePlayerJoins() {
+        spawnHolder();
+
+        monitor.armPendingDiscovery();
+        assertFalse(monitor.isTrackingAnyHolder());
+
+        server.addPlayer();
+        server.getScheduler().performTicks(20L * 5 + 1); // past the eligibility poll's first tick
+
+        assertTrue(monitor.isTrackingAnyHolder());
+    }
+
+    @Test
+    void armPendingDiscovery_calledAgainWhilePolling_doesNotScheduleASecondPoll() {
+        monitor.armPendingDiscovery();
+        int pendingAfterFirstArm = server.getScheduler().getPendingTasks().size();
+
+        monitor.armPendingDiscovery();
+
+        assertEquals(pendingAfterFirstArm, server.getScheduler().getPendingTasks().size());
     }
 
     @Test
@@ -89,7 +134,6 @@ class HeldBlockMonitorTest {
 
         assertTrue(records.stream().anyMatch(r -> r.getMessage().equals("Still holding a block at (10, 64, -30).")));
         assertTrue(monitor.isTrackingAnyHolder());
-        assertTrue(monitor.isResolutionTaskRunning());
     }
 
     @Test

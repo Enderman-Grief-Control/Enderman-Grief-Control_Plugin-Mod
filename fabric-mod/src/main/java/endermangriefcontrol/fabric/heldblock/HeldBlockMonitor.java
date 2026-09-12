@@ -1,6 +1,7 @@
 package endermangriefcontrol.fabric.heldblock;
 
 import endermangriefcontrol.fabric.EndermanGriefControlMod;
+import endermangriefcontrol.fabric.debug.TestModeLogger;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -21,30 +22,62 @@ import java.util.UUID;
  * Finds and resolves endermen that are stuck holding a block placement can no longer clear (e.g.
  * picked up before the mod was enabled, or during a window where it was toggled off).
  *
- * Detection is fully demand-driven: a discovery scan (over currently loaded endermen only - an
- * unloaded holder isn't contributing to any mob cap either, so there's nothing to miss) seeds a
- * set of known-holder UUIDs, and a resolution pass re-checks only that set every ~2 minutes. Unlike
- * the Paper plugin's start/stop BukkitTask, Fabric's END_SERVER_TICK callback is registered once
- * for the mod's lifetime (the idiomatic pattern here) and internally no-ops whenever the set is
- * empty, so there's still no real scanning work done when there's nothing to track. A UUID is only
- * ever removed explicitly (resolved via clearing, or the enderman died) - never inferred from a
- * lookup miss, since that's ambiguous between "unloaded" and "dead."
+ * Discovery can't just run once at server start or on a settings change, because at that instant no
+ * player has necessarily loaded the chunks a legacy holder sits in yet (a scan there can come back
+ * empty even though the world is otherwise fine) - but those two events are still the right moments
+ * to *want* an instant result, since whoever triggered them is typically already online to see it.
+ * So each is handled by {@link #armPendingDiscovery()}: run immediately if a player's already
+ * online, otherwise poll every few seconds until one is, then run once and stop polling. Separately,
+ * a slower periodic pass re-scans and resolves on a fixed interval for the entire server's lifetime
+ * regardless of that - it's the backstop for holders that only become findable long after startup (a
+ * relocated base, a chunk that unloaded and reloaded, etc). A UUID is only ever removed explicitly
+ * (resolved via clearing, or the enderman died) - never inferred from a lookup miss, since that's
+ * ambiguous between "unloaded" and "dead."
  */
 public final class HeldBlockMonitor {
 
-    private static final long RESOLUTION_PERIOD_TICKS = 20L * 60 * 2; // 2 minutes
+    private static final long TICKS_PER_SECOND = 20L;
+    private static final long RESOLUTION_PERIOD_SECONDS = 60 * 2;
+    private static final long RESOLUTION_PERIOD_TICKS = TICKS_PER_SECOND * RESOLUTION_PERIOD_SECONDS;
+    private static final long ELIGIBILITY_POLL_PERIOD_SECONDS = 5;
+    private static final long ELIGIBILITY_POLL_PERIOD_TICKS = TICKS_PER_SECOND * ELIGIBILITY_POLL_PERIOD_SECONDS;
 
     private final Set<UUID> knownHolders = new HashSet<>();
     private MinecraftServer server;
     private long tickCounter;
+    private boolean pendingEligibilityCheck;
 
     public void register() {
         ServerLifecycleEvents.SERVER_STARTED.register(startedServer -> {
             server = startedServer;
-            runDiscoveryScan();
+            armPendingDiscovery();
         });
         ServerTickEvents.END_SERVER_TICK.register(this::onServerTick);
         ServerLivingEntityEvents.AFTER_DEATH.register(this::onEntityDeath);
+    }
+
+    /**
+     * Requests a discovery scan for "as soon as it can actually find anything" rather than right
+     * now: runs immediately if a player is already online (true for basically every settings-change
+     * call site, since an admin has to be connected to trigger one), otherwise arms a short poll -
+     * every {@value #ELIGIBILITY_POLL_PERIOD_SECONDS}s, checked from {@link #onServerTick} - that
+     * fires the scan the moment a player joins, then stops. Calling this again while a poll is
+     * already armed is a no-op; it doesn't start a second one.
+     */
+    public void armPendingDiscovery() {
+        if (server != null && !server.getPlayerList().getPlayers().isEmpty()) {
+            TestModeLogger.log("armPendingDiscovery: player already online, running discovery now.");
+            runDiscoveryScan();
+            return;
+        }
+
+        if (pendingEligibilityCheck) {
+            TestModeLogger.log("armPendingDiscovery: eligibility poll already in progress, no-op.");
+            return;
+        }
+
+        TestModeLogger.log("armPendingDiscovery: no player online yet, starting eligibility poll.");
+        pendingEligibilityCheck = true;
     }
 
     /**
@@ -57,22 +90,31 @@ public final class HeldBlockMonitor {
             return;
         }
 
+        int foundThisPass = 0;
         for (ServerLevel level : server.getAllLevels()) {
             for (EnderMan enderman : level.getEntities(EntityTypeTest.forClass(EnderMan.class), e -> true)) {
-                if (enderman.getCarriedBlock() != null) {
-                    knownHolders.add(enderman.getUUID());
+                if (enderman.getCarriedBlock() != null && knownHolders.add(enderman.getUUID())) {
+                    foundThisPass++;
                 }
             }
         }
+        TestModeLogger.log("Discovery scan ran, found " + foundThisPass + " new holder(s) ("
+                + knownHolders.size() + " tracked total).");
     }
 
     private void onServerTick(MinecraftServer tickedServer) {
-        if (knownHolders.isEmpty()) {
-            return;
+        tickCounter++;
+
+        if (pendingEligibilityCheck
+                && tickCounter % ELIGIBILITY_POLL_PERIOD_TICKS == 0
+                && !tickedServer.getPlayerList().getPlayers().isEmpty()) {
+            TestModeLogger.log("armPendingDiscovery: eligibility poll succeeded, running discovery.");
+            runDiscoveryScan();
+            pendingEligibilityCheck = false;
         }
 
-        tickCounter++;
         if (tickCounter % RESOLUTION_PERIOD_TICKS == 0) {
+            runDiscoveryScan();
             runResolutionPass();
         }
     }
@@ -83,6 +125,10 @@ public final class HeldBlockMonitor {
      * the set as-is; it'll resolve itself once that chunk loads again.
      */
     private void runResolutionPass() {
+        int resolved = 0;
+        int alerted = 0;
+        int leftUntouched = 0;
+
         Iterator<UUID> iterator = knownHolders.iterator();
         while (iterator.hasNext()) {
             UUID id = iterator.next();
@@ -98,17 +144,22 @@ public final class HeldBlockMonitor {
                     EndermanGriefControlMod.getConfig().heldBlockHandling, HeldBlockHandling.AUTO_CLEAR);
 
             switch (handling) {
-                case ALERT -> EndermanGriefControlMod.announceHeldBlockAlert(enderman);
+                case ALERT -> {
+                    EndermanGriefControlMod.announceHeldBlockAlert(enderman);
+                    alerted++;
+                }
                 case AUTO_CLEAR -> {
                     enderman.setCarriedBlock(null);
                     EndermanGriefControlMod.announceHeldBlockCleared(enderman);
                     iterator.remove();
+                    resolved++;
                 }
-                case OFF -> {
-                    // Leave it tracked and untouched; picked up again if the mode later changes.
-                }
+                case OFF -> leftUntouched++; // Leave it tracked and untouched; picked up again if the mode later changes.
             }
         }
+
+        TestModeLogger.log("Resolution pass ran: " + resolved + " resolved, " + alerted + " alerted, "
+                + leftUntouched + " left untouched.");
     }
 
     private Entity findEntity(UUID id) {

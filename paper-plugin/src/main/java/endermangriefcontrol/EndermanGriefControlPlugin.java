@@ -1,5 +1,6 @@
 package endermangriefcontrol;
 
+import endermangriefcontrol.debug.TestModeLogger;
 import endermangriefcontrol.heldblock.HeldBlockHandling;
 import endermangriefcontrol.heldblock.HeldBlockMonitor;
 import endermangriefcontrol.listener.EndermanBlockListener;
@@ -32,6 +33,7 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
         // Ensure default config.yml is saved to the plugin data folder
         // (plugins/EndermanGriefControl/config.yml) if it does not exist.
         saveDefaultConfig();
+        TestModeLogger.init(this);
 
         getLogger().info("EndermanGriefControl is enabling...");
 
@@ -45,7 +47,7 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
         // was enabled (or from a window where it was toggled off).
         heldBlockMonitor = new HeldBlockMonitor(this);
         getServer().getPluginManager().registerEvents(heldBlockMonitor, this);
-        heldBlockMonitor.runDiscoveryScan();
+        heldBlockMonitor.start();
 
         getLogger().info("EndermanGriefControl has been enabled.");
     }
@@ -177,7 +179,7 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
 
     private void handleReload(CommandSender sender) {
         reloadConfig();
-        heldBlockMonitor.runDiscoveryScan(); // Config may have re-enabled worlds by hand-edit.
+        heldBlockMonitor.armPendingDiscovery(); // Config may have re-enabled worlds by hand-edit.
         sender.sendMessage("EndermanGriefControl configuration reloaded.");
         getLogger().info("Configuration reloaded by " + sender.getName());
     }
@@ -222,7 +224,7 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
         getConfig().set("worlds." + world, newValue);
         saveConfig();
         if (newValue && !wasEnabled) {
-            heldBlockMonitor.runDiscoveryScan(); // May have accumulated stuck holders while disabled.
+            heldBlockMonitor.armPendingDiscovery(); // May have accumulated stuck holders while disabled.
         }
         sender.sendMessage("World '" + world + "' is now " + (newValue ? "enabled" : "disabled") + ".");
     }
@@ -258,7 +260,7 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
                 getConfig().set("default-enabled", value);
                 saveConfig();
                 if (value && !wasDefaultEnabled) {
-                    heldBlockMonitor.runDiscoveryScan(); // May have accumulated stuck holders while disabled.
+                    heldBlockMonitor.armPendingDiscovery(); // May have accumulated stuck holders while disabled.
                 }
                 sender.sendMessage("Default is now " + (value ? "enabled" : "disabled") + ".");
             }

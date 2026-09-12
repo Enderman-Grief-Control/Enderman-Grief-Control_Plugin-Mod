@@ -8,6 +8,7 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.monster.EnderMan;
 import endermangriefcontrol.fabric.command.EndermanCommand;
+import endermangriefcontrol.fabric.debug.TestModeLogger;
 import endermangriefcontrol.fabric.heldblock.HeldBlockMonitor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +24,7 @@ public final class EndermanGriefControlMod implements ModInitializer {
     @Override
     public void onInitialize() {
         config = EndermanGriefControlConfig.load();
+        TestModeLogger.init();
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
                 EndermanCommand.register(dispatcher));
         HELD_BLOCK_MONITOR.register();
