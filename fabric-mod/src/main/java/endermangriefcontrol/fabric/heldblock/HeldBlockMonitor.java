@@ -22,17 +22,25 @@ import java.util.UUID;
  * Finds and resolves endermen that are stuck holding a block placement can no longer clear (e.g.
  * picked up before the mod was enabled, or during a window where it was toggled off).
  *
- * Discovery can't just run once at server start or on a settings change, because at that instant no
- * player has necessarily loaded the chunks a legacy holder sits in yet (a scan there can come back
- * empty even though the world is otherwise fine) - but those two events are still the right moments
- * to *want* an instant result, since whoever triggered them is typically already online to see it.
- * So each is handled by {@link #armPendingDiscovery()}: run immediately if a player's already
- * online, otherwise poll every few seconds until one is, then run once and stop polling. Separately,
- * a slower periodic pass re-scans and resolves on a fixed interval for the entire server's lifetime
- * regardless of that - it's the backstop for holders that only become findable long after startup (a
- * relocated base, a chunk that unloaded and reloaded, etc). A UUID is only ever removed explicitly
- * (resolved via clearing, or the enderman died) - never inferred from a lookup miss, since that's
- * ambiguous between "unloaded" and "dead."
+ * "Disabled" is a true kill switch: {@link #armPendingDiscovery()}, {@link #runDiscoveryScan()} and
+ * {@link #runResolutionPass()} all guard on {@code config.enabled} and do nothing at all while it's
+ * off - no polling, no scanning, no tracking, no resolving. The only thing that wakes any of this
+ * back up is re-enabling, which explicitly re-arms discovery itself (see
+ * EndermanGriefControlMod#setEnabled) - there's no need for the periodic backstop or an eligibility
+ * poll to keep running in the background while disabled just in case, since nothing they'd do can
+ * matter until re-enabled anyway.
+ *
+ * While enabled: discovery can't just run once at server start or on a settings change, because at
+ * that instant no player has necessarily loaded the chunks a legacy holder sits in yet (a scan there
+ * can come back empty even though the world is otherwise fine) - but those two events are still the
+ * right moments to *want* an instant result, since whoever triggered them is typically already
+ * online to see it. So each is handled by {@link #armPendingDiscovery()}: run immediately if a
+ * player's already online, otherwise poll every few seconds until one is, then run once and stop
+ * polling. Separately, a slower periodic pass re-scans and resolves on a fixed interval for as long
+ * as the mod stays enabled - it's the backstop for holders that only become findable long after
+ * startup (a relocated base, a chunk that unloaded and reloaded, etc). A UUID is only ever removed
+ * explicitly (resolved via clearing, or the enderman died) - never inferred from a lookup miss,
+ * since that's ambiguous between "unloaded" and "dead."
  */
 public final class HeldBlockMonitor {
 
@@ -65,6 +73,11 @@ public final class HeldBlockMonitor {
      * already armed is a no-op; it doesn't start a second one.
      */
     public void armPendingDiscovery() {
+        if (!EndermanGriefControlMod.getConfig().enabled) {
+            TestModeLogger.log("armPendingDiscovery: mod disabled, no-op.");
+            return;
+        }
+
         if (server != null && !server.getPlayerList().getPlayers().isEmpty()) {
             TestModeLogger.log("armPendingDiscovery: player already online, running discovery now.");
             runDiscoveryScan();
@@ -86,7 +99,7 @@ public final class HeldBlockMonitor {
      * could just mean unloaded. A no-op before the server has started (nothing to scan yet).
      */
     public void runDiscoveryScan() {
-        if (server == null) {
+        if (server == null || !EndermanGriefControlMod.getConfig().enabled) {
             return;
         }
 
@@ -122,9 +135,15 @@ public final class HeldBlockMonitor {
     /**
      * Re-checks each known-holder UUID directly (not a full re-scan) and acts per the mod's held-
      * block handling mode. A UUID that can't currently be resolved to a loaded entity is left in
-     * the set as-is; it'll resolve itself once that chunk loads again.
+     * the set as-is; it'll resolve itself once that chunk loads again. A no-op while the mod is
+     * currently disabled - "disabled" means the mod doesn't act at all, not just that it stops
+     * denying new pickups/placements.
      */
-    private void runResolutionPass() {
+    public void runResolutionPass() {
+        if (!EndermanGriefControlMod.getConfig().enabled) {
+            return;
+        }
+
         int resolved = 0;
         int alerted = 0;
         int leftUntouched = 0;

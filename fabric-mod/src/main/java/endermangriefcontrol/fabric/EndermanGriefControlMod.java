@@ -9,6 +9,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.monster.EnderMan;
 import endermangriefcontrol.fabric.command.EndermanCommand;
 import endermangriefcontrol.fabric.debug.TestModeLogger;
+import endermangriefcontrol.fabric.heldblock.HeldBlockHandling;
 import endermangriefcontrol.fabric.heldblock.HeldBlockMonitor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,6 +50,31 @@ public final class EndermanGriefControlMod implements ModInitializer {
     }
 
     /**
+     * The single place "enabled" actually gets changed - both the command and the Mod Menu screen
+     * call this rather than each mutating config.enabled themselves, so the arm-on-re-enable side
+     * effect only has to be written once and can't be forgotten at a second call site.
+     */
+    public static void setEnabled(boolean value) {
+        boolean wasEnabled = config.enabled;
+        config.enabled = value;
+        config.save();
+        if (value && !wasEnabled) {
+            HELD_BLOCK_MONITOR.armPendingDiscovery(); // May have accumulated stuck holders while disabled.
+        }
+    }
+
+    /**
+     * The single place held-block handling actually gets changed - see {@link #setEnabled}.
+     * Re-resolves immediately so the new mode applies to already-tracked holders right away,
+     * instead of waiting up to ~2 minutes for the next periodic resolution pass.
+     */
+    public static void setHeldBlockHandling(HeldBlockHandling mode) {
+        config.heldBlockHandling = mode.toConfigValue();
+        config.save();
+        HELD_BLOCK_MONITOR.runResolutionPass();
+    }
+
+    /**
      * Called by the pickup/placement mixins whenever a block change was prevented. Logs the same
      * short message to the console/log file that's shown in chat (matching the Paper plugin's log
      * wording), so players — not just admins reading logs — can see it happened.
@@ -83,12 +109,12 @@ public final class EndermanGriefControlMod implements ModInitializer {
     public static void announceHeldBlockAlert(EnderMan enderman) {
         String coords = "(" + enderman.getBlockX() + ", " + enderman.getBlockY() + ", " + enderman.getBlockZ() + ")";
 
-        LOGGER.info("[Enderman] Still holding a block at " + coords + ".");
+        LOGGER.info("[Enderman] holding a block at " + coords + ".");
 
         if (enderman.level() instanceof ServerLevel serverLevel) {
             MutableComponent chatMessage = Component.literal("[Enderman] ")
                     .withStyle(ChatFormatting.GOLD)
-                    .append(Component.literal("Still holding a block at ")
+                    .append(Component.literal("holding a block at ")
                             .withStyle(ChatFormatting.GRAY))
                     .append(Component.literal(coords + ".").withStyle(ChatFormatting.GREEN));
             serverLevel.getServer().getPlayerList().broadcastSystemMessage(chatMessage, false);
@@ -97,20 +123,24 @@ public final class EndermanGriefControlMod implements ModInitializer {
 
     /**
      * Called by HeldBlockMonitor whenever a stuck holder under "auto-clear" handling is resolved.
-     * Unlike the other two announce methods, this one is NOT gated by loggingEnabled - it only
-     * ever fires once per enderman (auto-clear is a one-time resolution, not a repeating status
-     * ping), and it's confirmation that the exact problem this mod exists to solve was just fixed
-     * for good, not just a routine "prevented a new attempt" notice.
+     * Gated by logRemovals - a separate toggle from loggingEnabled (which only covers denials),
+     * since a clear is a one-time confirmation the actual problem got fixed, not a repeating
+     * "still trying and being stopped" signal - most installs will want this on even with denial
+     * logging off, hence its own default-true toggle.
      */
     public static void announceHeldBlockCleared(EnderMan enderman) {
+        if (!config.logRemovals) {
+            return;
+        }
+
         String coords = "(" + enderman.getBlockX() + ", " + enderman.getBlockY() + ", " + enderman.getBlockZ() + ")";
 
-        LOGGER.info("[Enderman] Cleared a persisted holder at " + coords + ".");
+        LOGGER.info("[Enderman] holding cleared at " + coords + ".");
 
         if (enderman.level() instanceof ServerLevel serverLevel) {
             MutableComponent chatMessage = Component.literal("[Enderman] ")
                     .withStyle(ChatFormatting.AQUA)
-                    .append(Component.literal("Cleared a persisted holder at ")
+                    .append(Component.literal("holding cleared at ")
                             .withStyle(ChatFormatting.GRAY))
                     .append(Component.literal(coords + ".").withStyle(ChatFormatting.GREEN));
             serverLevel.getServer().getPlayerList().broadcastSystemMessage(chatMessage, false);

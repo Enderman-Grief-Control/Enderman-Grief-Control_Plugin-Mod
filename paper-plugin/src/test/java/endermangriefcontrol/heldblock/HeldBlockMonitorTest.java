@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Note: AUTO_CLEAR handling (setCarriedBlock(null), and the "Cleared a persisted holder"
+ * Note: AUTO_CLEAR handling (setCarriedBlock(null), and the "cleared a holder"
  * confirmation log that follows it) can't be exercised here - MockBukkit v4.108.0's EndermanMock
  * throws on a null carried-block argument even though the real Bukkit API documents
  * setCarriedBlock/getCarriedBlock as nullable, and WorldMock.addEntity() (the only way to inject a
@@ -91,6 +91,18 @@ class HeldBlockMonitorTest {
     }
 
     @Test
+    void discoveryScan_worldDisabled_doesNotTrackHolder() {
+        // Regression test: a disabled world must be genuinely inert - discovery shouldn't even
+        // start tracking a holder there, not just skip acting on it during resolution.
+        spawnHolder();
+        plugin.getConfig().set("worlds.world", false);
+
+        monitor.runDiscoveryScan();
+
+        assertFalse(monitor.isTrackingAnyHolder());
+    }
+
+    @Test
     void armPendingDiscovery_playerOnline_runsDiscoveryImmediately() {
         server.addPlayer();
         spawnHolder();
@@ -132,7 +144,7 @@ class HeldBlockMonitorTest {
 
         monitor.runResolutionPass();
 
-        assertTrue(records.stream().anyMatch(r -> r.getMessage().equals("Still holding a block at (10, 64, -30).")));
+        assertTrue(records.stream().anyMatch(r -> r.getMessage().equals("holding a block at (10, 64, -30).")));
         assertTrue(monitor.isTrackingAnyHolder());
     }
 
@@ -141,6 +153,20 @@ class HeldBlockMonitorTest {
         plugin.getConfig().set("default-held-block-handling", "off");
         Enderman enderman = spawnHolder();
         monitor.runDiscoveryScan();
+
+        monitor.runResolutionPass();
+
+        assertNotNull(enderman.getCarriedBlock());
+        assertTrue(monitor.isTrackingAnyHolder());
+    }
+
+    @Test
+    void resolutionPass_worldDisabled_leavesHolderUntouchedEvenInAutoClearMode() {
+        // Regression test: disabling a world must stop the held-block monitor from acting on it
+        // too, not just stop new pickups/placements from being denied there.
+        Enderman enderman = spawnHolder();
+        monitor.runDiscoveryScan();
+        plugin.getConfig().set("worlds.world", false);
 
         monitor.runResolutionPass();
 

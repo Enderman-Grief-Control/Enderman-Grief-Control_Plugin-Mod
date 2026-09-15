@@ -65,12 +65,14 @@
         <!-- EndermanGriefControl-mc_<mc version>-paper-<version>[-SNAPSHOT] -->
         <finalName>EndermanGriefControl-mc_${minecraft.version}-paper-${revision}</finalName>
         <resources>
-            <!-- Filter plugin.yml so its version stays in sync with <version> above -->
+            <!-- Filter plugin.yml (version) and test-mode.properties (bakes in the
+                 ENDERMAN_GRIEF_TEST_MODE env var at build time - see TestModeLogger) -->
             <resource>
                 <directory>src/main/resources</directory>
                 <filtering>true</filtering>
                 <includes>
                     <include>plugin.yml</include>
+                    <include>test-mode.properties</include>
                 </includes>
             </resource>
             <resource>
@@ -78,6 +80,7 @@
                 <filtering>false</filtering>
                 <excludes>
                     <exclude>plugin.yml</exclude>
+                    <exclude>test-mode.properties</exclude>
                 </excludes>
             </resource>
         </resources>

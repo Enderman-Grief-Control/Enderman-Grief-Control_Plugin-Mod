@@ -20,17 +20,24 @@ import java.util.UUID;
  * Finds and resolves endermen that are stuck holding a block placement can no longer clear (e.g.
  * picked up before the plugin was enabled, or during a window where it was toggled off).
  *
- * Discovery can't just run once at plugin enable or on a settings change, because at that instant
- * no player has necessarily loaded the chunks a legacy holder sits in yet (a scan there can come
- * back empty even though the world is otherwise fine) - but those two events are still the right
- * moments to *want* an instant result, since whoever triggered them is typically already online to
- * see it. So each is handled by {@link #armPendingDiscovery()}: run immediately if a player's
- * already online, otherwise poll every few seconds until one is, then run once and stop polling.
- * Separately, a slower periodic pass re-scans and resolves on a fixed interval for the entire
- * plugin lifetime regardless of that - it's the backstop for holders that only become findable long
- * after startup (a relocated base, a chunk that unloaded and reloaded, etc). A UUID is only ever
- * removed explicitly (resolved via clearing, or the enderman died) — never inferred from a lookup
- * miss, since that's ambiguous between "unloaded" and "dead."
+ * "Disabled" is a true kill switch, per world: both {@link #runDiscoveryScan()} and
+ * {@link #runResolutionPass()} skip a disabled world entirely - no scanning, no tracking, no
+ * resolving there. Unlike the Fabric mod there's no single global flag to gate {@link
+ * #armPendingDiscovery()} itself on (enabled state is per-world here), so it keeps arming/polling
+ * regardless - the per-world skip inside discovery/resolution is what makes a disabled world
+ * genuinely inert, not a check at the arming stage.
+ *
+ * While enabled: discovery can't just run once at plugin enable or on a settings change, because
+ * at that instant no player has necessarily loaded the chunks a legacy holder sits in yet (a scan
+ * there can come back empty even though the world is otherwise fine) - but those two events are
+ * still the right moments to *want* an instant result, since whoever triggered them is typically
+ * already online to see it. So each is handled by {@link #armPendingDiscovery()}: run immediately
+ * if a player's already online, otherwise poll every few seconds until one is, then run once and
+ * stop polling. Separately, a slower periodic pass re-scans and resolves on a fixed interval for
+ * the entire plugin lifetime - it's the backstop for holders that only become findable long after
+ * startup (a relocated base, a chunk that unloaded and reloaded, etc). A UUID is only ever removed
+ * explicitly (resolved via clearing, or the enderman died) — never inferred from a lookup miss,
+ * since that's ambiguous between "unloaded" and "dead."
  */
 public final class HeldBlockMonitor implements Listener {
 
@@ -101,11 +108,15 @@ public final class HeldBlockMonitor implements Listener {
     /**
      * Scans all currently loaded endermen for a carried block and adds any found to the
      * known-holders set. Never removes anything — absence from this scan doesn't mean resolved,
-     * it could just mean unloaded.
+     * it could just mean unloaded. Skips disabled worlds entirely - "disabled" means the plugin
+     * doesn't act on that world at all, not just that it stops denying new pickups/placements.
      */
     public void runDiscoveryScan() {
         int foundThisPass = 0;
         for (World world : plugin.getServer().getWorlds()) {
+            if (!plugin.isWorldEnabled(world.getName())) {
+                continue;
+            }
             for (Enderman enderman : world.getEntitiesByClass(Enderman.class)) {
                 if (enderman.getCarriedBlock() != null && knownHolders.add(enderman.getUniqueId())) {
                     foundThisPass++;
@@ -119,12 +130,15 @@ public final class HeldBlockMonitor implements Listener {
     /**
      * Re-checks each known-holder UUID directly (not a full re-scan) and acts per that enderman's
      * world handling mode. A UUID that can't currently be resolved to a loaded entity is left in
-     * the set as-is; it'll resolve itself once that chunk loads again.
+     * the set as-is; it'll resolve itself once that chunk loads again. A holder in a currently
+     * disabled world is left tracked and untouched too - "disabled" means the plugin doesn't act
+     * on that world at all, not just that it stops denying new pickups/placements.
      */
-    void runResolutionPass() {
+    public void runResolutionPass() {
         int resolved = 0;
         int alerted = 0;
         int leftUntouched = 0;
+        int skippedDisabled = 0;
 
         Iterator<UUID> iterator = knownHolders.iterator();
         while (iterator.hasNext()) {
@@ -134,6 +148,11 @@ public final class HeldBlockMonitor implements Listener {
                 if (entity != null) {
                     iterator.remove(); // Found, but no longer holding anything - resolved.
                 }
+                continue;
+            }
+
+            if (!plugin.isWorldEnabled(enderman.getWorld().getName())) {
+                skippedDisabled++;
                 continue;
             }
 
@@ -153,7 +172,7 @@ public final class HeldBlockMonitor implements Listener {
         }
 
         TestModeLogger.log("Resolution pass ran: " + resolved + " resolved, " + alerted + " alerted, "
-                + leftUntouched + " left untouched.");
+                + leftUntouched + " left untouched, " + skippedDisabled + " skipped (world disabled).");
     }
 
     @EventHandler

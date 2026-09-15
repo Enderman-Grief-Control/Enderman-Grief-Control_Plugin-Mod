@@ -37,9 +37,12 @@ public final class EndermanCommand {
                         .then(Commands.argument("enabled", BoolArgumentType.bool())
                                 .executes(ctx -> setEnabled(ctx, BoolArgumentType.getBool(ctx, "enabled")))))
                 .then(Commands.literal("set")
-                        .then(Commands.literal("logging")
+                        .then(Commands.literal("log-denials")
                                 .then(Commands.argument("value", BoolArgumentType.bool())
-                                        .executes(ctx -> setLogging(ctx, BoolArgumentType.getBool(ctx, "value")))))
+                                        .executes(ctx -> setLogDenials(ctx, BoolArgumentType.getBool(ctx, "value")))))
+                        .then(Commands.literal("log-removals")
+                                .then(Commands.argument("value", BoolArgumentType.bool())
+                                        .executes(ctx -> setLogRemovals(ctx, BoolArgumentType.getBool(ctx, "value")))))
                         .then(Commands.literal("held-block")
                                 .then(Commands.argument("mode", StringArgumentType.word())
                                         .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(HELD_BLOCK_MODES, builder))
@@ -60,30 +63,34 @@ public final class EndermanCommand {
                 config.heldBlockHandling, HeldBlockHandling.AUTO_CLEAR);
         ctx.getSource().sendSuccess(() -> Component.literal(
                 "Prevention: " + (config.enabled ? "enabled" : "disabled")
-                        + ", logging: " + (config.loggingEnabled ? "enabled" : "disabled")
+                        + ", log denials: " + (config.loggingEnabled ? "enabled" : "disabled")
+                        + ", log removals: " + (config.logRemovals ? "enabled" : "disabled")
                         + ", held-block: " + heldBlockHandling.toConfigValue()), false);
         return 1;
     }
 
     private static int setEnabled(CommandContext<CommandSourceStack> ctx, boolean value) {
-        EndermanGriefControlConfig config = EndermanGriefControlMod.getConfig();
-        boolean wasEnabled = config.enabled;
-        config.enabled = value;
-        config.save();
-        if (value && !wasEnabled) {
-            EndermanGriefControlMod.getHeldBlockMonitor().armPendingDiscovery(); // May have accumulated stuck holders.
-        }
+        EndermanGriefControlMod.setEnabled(value);
         ctx.getSource().sendSuccess(() -> Component.literal(
                 "Enderman grief prevention is now " + (value ? "enabled" : "disabled") + "."), true);
         return 1;
     }
 
-    private static int setLogging(CommandContext<CommandSourceStack> ctx, boolean value) {
+    private static int setLogDenials(CommandContext<CommandSourceStack> ctx, boolean value) {
         EndermanGriefControlConfig config = EndermanGriefControlMod.getConfig();
         config.loggingEnabled = value;
         config.save();
         ctx.getSource().sendSuccess(() -> Component.literal(
-                "Logging is now " + (value ? "enabled" : "disabled") + "."), true);
+                "Log denials is now " + (value ? "enabled" : "disabled") + "."), true);
+        return 1;
+    }
+
+    private static int setLogRemovals(CommandContext<CommandSourceStack> ctx, boolean value) {
+        EndermanGriefControlConfig config = EndermanGriefControlMod.getConfig();
+        config.logRemovals = value;
+        config.save();
+        ctx.getSource().sendSuccess(() -> Component.literal(
+                "Log removals is now " + (value ? "enabled" : "disabled") + "."), true);
         return 1;
     }
 
@@ -94,9 +101,7 @@ public final class EndermanCommand {
             return 0;
         }
 
-        EndermanGriefControlConfig config = EndermanGriefControlMod.getConfig();
-        config.heldBlockHandling = mode.toConfigValue();
-        config.save();
+        EndermanGriefControlMod.setHeldBlockHandling(mode);
         ctx.getSource().sendSuccess(() -> Component.literal(
                 "Held-block handling is now " + mode.toConfigValue() + "."), true);
         return 1;

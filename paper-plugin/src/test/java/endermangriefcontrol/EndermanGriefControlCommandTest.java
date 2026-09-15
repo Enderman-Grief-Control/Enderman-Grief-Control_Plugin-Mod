@@ -67,7 +67,7 @@ class EndermanGriefControlCommandTest {
 
         server.dispatchCommand(player, "enderman status");
 
-        player.assertSaid("Default: enabled, logging: disabled, held-block: auto-clear");
+        player.assertSaid("Default: enabled, log denials: disabled, log removals: enabled, held-block: auto-clear");
     }
 
     @Test
@@ -101,13 +101,23 @@ class EndermanGriefControlCommandTest {
     }
 
     @Test
-    void setLogging_updatesConfigAndPersists() {
+    void setLogDenials_updatesConfigAndPersists() {
         PlayerMock player = authorizedPlayer();
 
-        server.dispatchCommand(player, "enderman set logging true");
+        server.dispatchCommand(player, "enderman set log-denials true");
 
-        player.assertSaid("Logging is now enabled.");
+        player.assertSaid("Log denials is now enabled.");
         assertTrue(plugin.isLoggingEnabled());
+    }
+
+    @Test
+    void setLogRemovals_updatesConfigAndPersists() {
+        PlayerMock player = authorizedPlayer();
+
+        server.dispatchCommand(player, "enderman set log-removals false");
+
+        player.assertSaid("Log removals is now disabled.");
+        assertFalse(plugin.isRemovalsLoggingEnabled());
     }
 
     @Test

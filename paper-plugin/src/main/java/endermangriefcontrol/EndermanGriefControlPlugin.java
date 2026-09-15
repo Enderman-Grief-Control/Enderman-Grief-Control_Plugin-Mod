@@ -75,10 +75,19 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
     }
 
     /**
-     * Whether per-event logging is enabled.
+     * Whether denied pickup/placement attempts are logged.
      */
     public boolean isLoggingEnabled() {
         return getConfig().getBoolean("logging.enabled", false);
+    }
+
+    /**
+     * Whether an auto-cleared stuck holder is logged. Separate from {@link #isLoggingEnabled()} -
+     * a clear is a one-time confirmation the actual problem got fixed, not a repeating denial, so
+     * this defaults to on even though denial logging defaults off.
+     */
+    public boolean isRemovalsLoggingEnabled() {
+        return getConfig().getBoolean("logging.removals", true);
     }
 
     /**
@@ -107,6 +116,53 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
     }
 
     /**
+     * The single place a world's enabled state actually gets changed - command handlers call this
+     * rather than each mutating config themselves, so the arm-on-re-enable side effect only has to
+     * be written once and can't be forgotten at a second call site.
+     */
+    public void setWorldEnabled(String world, boolean value) {
+        boolean wasEnabled = isWorldEnabled(world);
+        getConfig().set("worlds." + world, value);
+        saveConfig();
+        if (value && !wasEnabled) {
+            heldBlockMonitor.armPendingDiscovery(); // May have accumulated stuck holders while disabled.
+        }
+    }
+
+    /**
+     * The single place the default enabled state actually gets changed - see {@link #setWorldEnabled}.
+     */
+    public void setDefaultEnabled(boolean value) {
+        boolean wasEnabled = getConfig().getBoolean("default-enabled", true);
+        getConfig().set("default-enabled", value);
+        saveConfig();
+        if (value && !wasEnabled) {
+            heldBlockMonitor.armPendingDiscovery(); // May have accumulated stuck holders while disabled.
+        }
+    }
+
+    /**
+     * The single place a world's held-block handling actually gets changed - see
+     * {@link #setWorldEnabled}. Re-resolves immediately so the new mode applies to already-tracked
+     * holders right away, instead of waiting up to ~2 minutes for the next periodic pass.
+     */
+    public void setWorldHeldBlockHandling(String world, HeldBlockHandling mode) {
+        getConfig().set("held-block-worlds." + world, mode.toConfigValue());
+        saveConfig();
+        heldBlockMonitor.runResolutionPass();
+    }
+
+    /**
+     * The single place the default held-block handling actually gets changed - see
+     * {@link #setWorldHeldBlockHandling}.
+     */
+    public void setDefaultHeldBlockHandling(HeldBlockHandling mode) {
+        getConfig().set("default-held-block-handling", mode.toConfigValue());
+        saveConfig();
+        heldBlockMonitor.runResolutionPass();
+    }
+
+    /**
      * Logs that an enderman's block pickup or placement was denied. Bukkit's logger already
      * prefixes console output with "[EndermanGriefControl]" and its own timestamp, so the message
      * itself stays short.
@@ -124,24 +180,25 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
     public void logHeldBlockAlert(Enderman enderman) {
         String coords = enderman.getLocation().getBlockX() + ", " + enderman.getLocation().getBlockY()
                 + ", " + enderman.getLocation().getBlockZ();
-        getLogger().info("Still holding a block at (" + coords + ").");
+        getLogger().info("holding a block at (" + coords + ").");
     }
 
     /**
-     * Logs that a stuck holder was auto-cleared. Unlike the other two log methods, this one isn't
-     * gated by any logging toggle - it only ever fires once per enderman (auto-clear is a one-time
-     * resolution, not a repeating status ping), and it's arguably the single most meaningful line
-     * this plugin can log: it's confirmation that the exact problem the plugin exists to solve was
-     * just fixed for good, not just a routine "prevented a new attempt" notice.
+     * Logs that a stuck holder was auto-cleared. Gated by {@link #isRemovalsLoggingEnabled()} -
+     * separate from denial logging, and on by default.
      */
     public void logHeldBlockCleared(Enderman enderman) {
+        if (!isRemovalsLoggingEnabled()) {
+            return;
+        }
+
         String coords = enderman.getLocation().getBlockX() + ", " + enderman.getLocation().getBlockY()
                 + ", " + enderman.getLocation().getBlockZ();
-        getLogger().info("Cleared a persisted holder at (" + coords + ").");
+        getLogger().info("cleared a holder at (" + coords + ").");
     }
 
     private static final List<String> SUBCOMMANDS = List.of("reload", "status", "toggle", "held-block", "set");
-    private static final List<String> SET_KEYS = List.of("default", "logging", "held-block-default");
+    private static final List<String> SET_KEYS = List.of("default", "log-denials", "log-removals", "held-block-default");
     private static final List<String> BOOLEANS = List.of("true", "false");
     private static final List<String> HELD_BLOCK_MODES = List.of("auto-clear", "alert", "off");
 
@@ -194,7 +251,8 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
 
         boolean defaultEnabled = getConfig().getBoolean("default-enabled", true);
         sender.sendMessage("Default: " + (defaultEnabled ? "enabled" : "disabled")
-                + ", logging: " + (isLoggingEnabled() ? "enabled" : "disabled")
+                + ", log denials: " + (isLoggingEnabled() ? "enabled" : "disabled")
+                + ", log removals: " + (isRemovalsLoggingEnabled() ? "enabled" : "disabled")
                 + ", held-block: " + getDefaultHeldBlockHandling().toConfigValue());
 
         ConfigurationSection worldsSection = getConfig().getConfigurationSection("worlds");
@@ -219,13 +277,8 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
         }
 
         String world = args[1];
-        boolean wasEnabled = isWorldEnabled(world);
-        boolean newValue = args.length >= 3 ? Boolean.parseBoolean(args[2]) : !wasEnabled;
-        getConfig().set("worlds." + world, newValue);
-        saveConfig();
-        if (newValue && !wasEnabled) {
-            heldBlockMonitor.armPendingDiscovery(); // May have accumulated stuck holders while disabled.
-        }
+        boolean newValue = args.length >= 3 ? Boolean.parseBoolean(args[2]) : !isWorldEnabled(world);
+        setWorldEnabled(world, newValue);
         sender.sendMessage("World '" + world + "' is now " + (newValue ? "enabled" : "disabled") + ".");
     }
 
@@ -242,33 +295,33 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
             return;
         }
 
-        getConfig().set("held-block-worlds." + world, mode.toConfigValue());
-        saveConfig();
+        setWorldHeldBlockHandling(world, mode);
         sender.sendMessage("Held-block handling for world '" + world + "' is now " + mode.toConfigValue() + ".");
     }
 
     private void handleSet(CommandSender sender, String[] args) {
         if (args.length < 3) {
-            sender.sendMessage("Usage: /enderman set <default|logging|held-block-default> <value>");
+            sender.sendMessage("Usage: /enderman set <default|log-denials|log-removals|held-block-default> <value>");
             return;
         }
 
         switch (args[1].toLowerCase(Locale.ROOT)) {
             case "default" -> {
                 boolean value = Boolean.parseBoolean(args[2]);
-                boolean wasDefaultEnabled = getConfig().getBoolean("default-enabled", true);
-                getConfig().set("default-enabled", value);
-                saveConfig();
-                if (value && !wasDefaultEnabled) {
-                    heldBlockMonitor.armPendingDiscovery(); // May have accumulated stuck holders while disabled.
-                }
+                setDefaultEnabled(value);
                 sender.sendMessage("Default is now " + (value ? "enabled" : "disabled") + ".");
             }
-            case "logging" -> {
+            case "log-denials" -> {
                 boolean value = Boolean.parseBoolean(args[2]);
                 getConfig().set("logging.enabled", value);
                 saveConfig();
-                sender.sendMessage("Logging is now " + (value ? "enabled" : "disabled") + ".");
+                sender.sendMessage("Log denials is now " + (value ? "enabled" : "disabled") + ".");
+            }
+            case "log-removals" -> {
+                boolean value = Boolean.parseBoolean(args[2]);
+                getConfig().set("logging.removals", value);
+                saveConfig();
+                sender.sendMessage("Log removals is now " + (value ? "enabled" : "disabled") + ".");
             }
             case "held-block-default" -> {
                 HeldBlockHandling mode = HeldBlockHandling.fromConfig(args[2], null);
@@ -276,11 +329,10 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
                     sender.sendMessage("Usage: /enderman set held-block-default <auto-clear|alert|off>");
                     return;
                 }
-                getConfig().set("default-held-block-handling", mode.toConfigValue());
-                saveConfig();
+                setDefaultHeldBlockHandling(mode);
                 sender.sendMessage("Default held-block handling is now " + mode.toConfigValue() + ".");
             }
-            default -> sender.sendMessage("Usage: /enderman set <default|logging|held-block-default> <value>");
+            default -> sender.sendMessage("Usage: /enderman set <default|log-denials|log-removals|held-block-default> <value>");
         }
     }
 

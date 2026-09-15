@@ -1,31 +1,29 @@
 package endermangriefcontrol.fabric.debug;
 
-import com.google.gson.Gson;
 import endermangriefcontrol.fabric.EndermanGriefControlMod;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.io.InputStream;
+import java.util.Properties;
 
 /**
  * Dev-only diagnostic logging for watching the held-block discovery/resolution machinery live
  * during manual QA. Never shipped as a supported feature - there's no /enderman command or config
  * key for it, since it's meant purely for testers, not end users.
  *
- * Switched on by hand-creating a "no-enderman-grief-debug.json" (key: "testMode": true) in the
- * Fabric config directory. Unlike the real config, this file is never auto-generated or written by
- * the mod itself - a normal install never has one, so there's no in-game way to create or flip it.
+ * Switched on by the ENDERMAN_GRIEF_TEST_MODE environment variable (true/false) - but baked in at
+ * *build* time, not read at runtime: build.gradle's processResources block substitutes it into
+ * test-mode.properties when the jar is built, so the variable only needs to be set wherever the
+ * build runs, not wherever the resulting jar is later launched. Rebuilding is already required for
+ * every deployment, so this piggybacks on that instead of needing its own runtime environment
+ * setup on every launch path (IDE run configs, dedicated servers, etc). Same variable name as the
+ * Paper plugin, so one setting controls test mode on either platform's build.
  */
 public final class TestModeLogger {
-
-    private static final Gson GSON = new Gson();
-    private static final Path DEBUG_CONFIG_PATH =
-            FabricLoader.getInstance().getConfigDir().resolve("no-enderman-grief-debug.json");
 
     private static boolean enabled;
     private static MinecraftServer server;
@@ -34,23 +32,23 @@ public final class TestModeLogger {
     }
 
     public static void init() {
-        enabled = readEnabledFlag();
+        enabled = readBakedFlag();
         ServerLifecycleEvents.SERVER_STARTED.register(startedServer -> server = startedServer);
         if (enabled) {
-            EndermanGriefControlMod.LOGGER.info("Test-mode diagnostic logging is ON.");
+            EndermanGriefControlMod.LOGGER.info("Test-mode diagnostic logging is ON (baked in at build time).");
         }
     }
 
-    private static boolean readEnabledFlag() {
-        if (!Files.exists(DEBUG_CONFIG_PATH)) {
-            return false;
-        }
-
-        try (var reader = Files.newBufferedReader(DEBUG_CONFIG_PATH)) {
-            DebugConfig config = GSON.fromJson(reader, DebugConfig.class);
-            return config != null && config.testMode;
+    private static boolean readBakedFlag() {
+        try (InputStream in = TestModeLogger.class.getClassLoader().getResourceAsStream("test-mode.properties")) {
+            if (in == null) {
+                return false;
+            }
+            Properties properties = new Properties();
+            properties.load(in);
+            return Boolean.parseBoolean(properties.getProperty("test-mode", "false"));
         } catch (IOException e) {
-            EndermanGriefControlMod.LOGGER.warn("Failed to read {}, test mode stays off.", DEBUG_CONFIG_PATH, e);
+            EndermanGriefControlMod.LOGGER.warn("Failed to read baked test-mode.properties, test mode stays off.", e);
             return false;
         }
     }
@@ -66,9 +64,5 @@ public final class TestModeLogger {
             Component chatMessage = Component.literal("[TEST] " + message).withStyle(ChatFormatting.DARK_GRAY);
             server.getPlayerList().broadcastSystemMessage(chatMessage, false);
         }
-    }
-
-    private static final class DebugConfig {
-        boolean testMode;
     }
 }

@@ -18,12 +18,10 @@ worlds: {}
 # ~2 minutes. One of:
 #   auto-clear - remove the carried block outright, nothing dropped (endermen only ever carry
 #                common terrain blocks). The default - this is resolved automatically, no
-#                configuration needed. Every clear is always logged regardless of "logging" below,
-#                since it's a one-time resolution confirming an actual problem just got fixed, not
-#                a routine prevented-attempt notice.
-#   alert      - instead of clearing, periodically re-log its location (see "logging" below for
-#                the message) so you can hunt it down and kill it yourself. For players who'd
-#                rather nothing be resolved on their behalf automatically.
+#                configuration needed. Logged when "logging.removals" below is true (the default).
+#   alert      - instead of clearing, periodically re-log its location so you can hunt it down and
+#                kill it yourself, regardless of "logging" below. For players who'd rather nothing
+#                be resolved on their behalf automatically.
 #   off        - leave it alone entirely.
 #
 # If a world is not listed under "held-block-worlds", this value decides its handling by default.
@@ -39,3 +37,7 @@ held-block-worlds: {}
 logging:
   # If true, log whenever the plugin denies an enderman block pickup/placement.
   enabled: false
+  # If true, log whenever a stuck holder is auto-cleared. Separate from "enabled" above - a clear
+  # is a one-time confirmation the actual problem got fixed, not a repeating denial, so this
+  # defaults to on even though denial logging defaults off.
+  removals: true

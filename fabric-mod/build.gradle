@@ -58,6 +58,15 @@ processResources {
 	filesMatching("fabric.mod.json") {
 		expand "version": version
 	}
+
+	// Bakes ENDERMAN_GRIEF_TEST_MODE into the built jar at build time - see TestModeLogger. Only
+	// needs to be set wherever the build runs, not wherever the resulting jar is later launched.
+	def testMode = (System.getenv("ENDERMAN_GRIEF_TEST_MODE") ?: "false").toBoolean()
+	inputs.property "testMode", testMode
+
+	filesMatching("test-mode.properties") {
+		expand "testMode": testMode
+	}
 }
 
 tasks.withType(JavaCompile).configureEach {
