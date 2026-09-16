@@ -1,20 +1,20 @@
-name: NoEndermanGrief
+name: EndermanGriefControl
 version: '${project.version}'
-main: noendermangrief.NoEndermanGriefPlugin
+main: endermangriefcontrol.EndermanGriefControlPlugin
 description: Prevents endermen from picking up or placing blocks while leaving other mob behavior vanilla.
 author: Jack Underhill
 api-version: '1.21'
 
 commands:
-  negreload:
-    description: Reload NoEndermanGrief configuration.
-    usage: /negreload
+  enderman:
+    description: Manage EndermanGriefControl settings.
+    usage: /enderman <reload|status|toggle|held-block|set>
     # Permission is checked manually in onCommand (with a custom denial
     # message) rather than declared here, since declaring it here would
     # make Bukkit auto-gate the command with its own generic message
     # before onCommand ever runs.
 
 permissions:
-  noendermangrief.reload:
-    description: Allows reloading NoEndermanGrief configuration.
+  endermangriefcontrol.admin:
+    description: Allows managing EndermanGriefControl settings (reload, status, toggle, set).
     default: op

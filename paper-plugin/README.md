@@ -1,8 +1,8 @@
-# NoEndermanGrief
+# EndermanGriefControl
 
 Every mob can be spawn-proofed and optimized around — except endermen. They teleport straight through spawn-proofing into hidden pockets (deep underground, inside your own base), and the moment one picks up a block, it sticks around far longer than it should, quietly eating into your mob cap and tanking spawn rates on any mob farm nearby. Run a base with several farms, and endermen are the one mob you can't design around — no matter how well everything else is optimized. (And yes, they also just grief your builds overnight.)
 
-**NoEndermanGrief** fixes that at the source: endermen simply can't pick up or place blocks anymore, full stop. Unlike turning off the `mobGriefing` gamerule, this doesn't touch anything else — creepers still explode, villagers still farm, silverfish still infest. Only endermen are affected.
+**EndermanGriefControl** fixes that at the source: endermen simply can't pick up or place blocks anymore, full stop. Unlike turning off the `mobGriefing` gamerule, this doesn't touch anything else — creepers still explode, villagers still farm, silverfish still infest. Only endermen are affected.
 
 ## Features
 
@@ -11,7 +11,7 @@ Every mob can be spawn-proofed and optimized around — except endermen. They te
 - The global `mobGriefing` gamerule is never touched, so every other mob behaves exactly as vanilla intends.
 - Enable or disable it per world, if you want different behavior in the Nether, the End, or specific worlds.
 - Optional logging (with coordinates) if you want a record of what got blocked.
-- One admin-only command to reload settings without restarting the server — nothing changes for regular players.
+- One admin-only command, `/enderman`, to inspect and change every setting in-game — with tab-completion — without restarting the server.
 
 ## Requirements
 
@@ -23,16 +23,18 @@ The plugin only calls long-stable Bukkit API (`EntityChangeBlockEvent`, `EntityT
 
 ## Installation
 
-1. Download the jar (see [Building from source](#building-from-source) below, or grab a release from [Modrinth](https://modrinth.com/plugin/no-enderman-grief-2025)).
+1. Download the jar (see [Building from source](#building-from-source) below, or grab a release from [Modrinth](https://modrinth.com/plugin/enderman-grief-control)).
 2. Drop it into your server's `plugins/` folder.
 3. Restart your server.
-4. That's it — endermen are already blocked from griefing. Run `/plugins` to confirm **NoEndermanGrief** is listed and enabled.
+4. That's it — endermen are already blocked from griefing. Run `/plugins` to confirm **EndermanGriefControl** is listed and enabled.
 
-The first time it runs, the plugin creates a `plugins/NoEndermanGrief/config.yml` with sensible defaults. You don't need to touch it unless you want to change something.
+The first time it runs, the plugin creates a `plugins/EndermanGriefControl/config.yml` with sensible defaults. You don't need to touch it unless you want to change something.
+
+> **Upgrading from NoEndermanGrief?** The plugin (and its data folder) were renamed to match the project's new name. Your old settings are still at `plugins/NoEndermanGrief/config.yml` — copy the values you care about into the new `plugins/EndermanGriefControl/config.yml` after upgrading, since Bukkit won't do this automatically. If you granted the old `noendermangrief.reload`/`noendermangrief.admin` permission explicitly, re-grant it as `endermangriefcontrol.admin`.
 
 ## Configuration
 
-`plugins/NoEndermanGrief/config.yml`:
+`plugins/EndermanGriefControl/config.yml`:
 
 ```yaml
 # If a world is not listed under "worlds", this value decides
@@ -48,9 +50,18 @@ default-enabled: true
 #   world_the_end: true
 worlds: {}
 
+# Handling for endermen already stuck holding a block placement can no longer clear (e.g. picked
+# up before the plugin was enabled, or during a window where it was toggled off). Checked every
+# ~2 minutes. One of "auto-clear" (default), "alert", or "off" - see "Stuck holders" below.
+default-held-block-handling: auto-clear
+held-block-worlds: {}
+
 logging:
   # If true, log whenever the plugin denies an enderman block pickup/placement.
   enabled: false
+  # If true, log whenever a stuck holder is auto-cleared. Separate from "enabled" above - on by
+  # default, since a clear is a one-time confirmation, not a repeating denial.
+  removals: true
 ```
 
 ### Per-world control
@@ -69,31 +80,54 @@ In this example: enabled in `world` and `world_the_end`, disabled in `world_neth
 
 ### Logging
 
-`logging.enabled: true` — log a line each time an enderman's pickup or placement is denied. Bukkit already prefixes console output with the plugin name and a timestamp, so the message itself stays short:
+Two independent toggles:
+
+- `logging.enabled` (default **off**) — log a line each time an enderman's pickup or placement is denied. This repeats every time a pickup/placement is prevented, so it's off by default to avoid spam.
+- `logging.removals` (default **on**) — log a line each time a stuck holder is auto-cleared (see "Stuck holders" below). This only ever fires once per enderman, and confirms an actual problem just got fixed, so it defaults to on even with denial logging off.
+
+Bukkit already prefixes console output with the plugin name and a timestamp, so the messages themselves stay short:
 
 ```text
-[NoEndermanGrief] Denied pickup at (10, 64, -30).
+[EndermanGriefControl] Denied pickup at (10, 64, -30).
+[EndermanGriefControl] cleared a holder at (10, 64, -30).
 ```
 
-This matches the message the [Fabric mod](../fabric-mod/) shows in chat, if you use both.
+The [Fabric mod](../fabric-mod/) shows similarly short, prefixed messages in chat, if you use both.
+
+### Stuck holders (already-carrying endermen)
+
+Pickup/placement prevention only stops *new* grief - it doesn't touch an enderman that's already carrying a block (from before the plugin was enabled, or from a window where it was toggled off). `default-held-block-handling` / `held-block-worlds` (same per-world override resolution as `default-enabled`/`worlds` above) decides what happens to one, checked every ~2 minutes:
+
+- **`auto-clear`** (the default) - removes the carried block from the enderman outright. Nothing is dropped - endermen only ever carry common terrain blocks, so nothing of value is lost. This is resolved automatically with no configuration needed. A successful clear is logged (`cleared a holder at (...)`) when `logging.removals` above is on (the default).
+- **`alert`** - instead of clearing, periodically re-logs the enderman's location (worded distinctly from the denial log above: `holding a block at (...)`), so you can go hunt it down and kill it yourself. For players who'd rather nothing be resolved on their behalf automatically.
+- **`off`** - leave it alone entirely.
 
 ## Commands & permission
 
-| Command | Does | Permission | Default |
-|---|---|---|---|
-| `/negreload` | Reloads `config.yml` from disk, no restart needed | `noendermangrief.reload` | `op` |
+All subcommands live under `/enderman` and require the `endermangriefcontrol.admin` permission (default `op`). Tab-completion is available at every argument position.
+
+| Command | Does |
+|---|---|
+| `/enderman reload` | Reloads `config.yml` from disk, no restart needed |
+| `/enderman status [world]` | Shows current default/logging state, or a specific world's effective state |
+| `/enderman toggle <world> [true\|false]` | Sets (or flips, if no value given) a per-world override, persisted to `config.yml` |
+| `/enderman held-block <world> <auto-clear\|alert\|off>` | Sets a per-world held-block handling override, persisted to `config.yml` |
+| `/enderman set default <true\|false>` | Changes `default-enabled`, persisted to `config.yml` |
+| `/enderman set log-denials <true\|false>` | Changes `logging.enabled`, persisted to `config.yml` |
+| `/enderman set log-removals <true\|false>` | Changes `logging.removals`, persisted to `config.yml` |
+| `/enderman set held-block-default <auto-clear\|alert\|off>` | Changes `default-held-block-handling`, persisted to `config.yml` |
 
 ## Building from source
 
 This project uses Maven.
 
 ```bash
-git clone https://github.com/Jack-Underhill/No-Enderman-Grief.git
-cd No-Enderman-Grief/paper-plugin
+git clone https://github.com/Jack-Underhill/Enderman-Grief-Control.git
+cd Enderman-Grief-Control/paper-plugin
 mvn package
 ```
 
-The compiled jar lands at `target/EndermanGriefControl-mc_1.21-paper-1.0.0.jar` — copy it into your server's `plugins/` folder.
+The compiled jar lands at `target/EndermanGriefControl-mc_1.21-paper-1.1.0.jar` — copy it into your server's `plugins/` folder.
 
 Automated tests (MockBukkit-based) run as part of the same `mvn package`, or on their own via `mvn test`.
 

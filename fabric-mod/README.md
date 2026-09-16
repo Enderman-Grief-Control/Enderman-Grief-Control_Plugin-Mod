@@ -1,4 +1,4 @@
-# No Enderman Grief (Fabric)
+# Enderman Grief Control (Fabric)
 
 Every mob can be spawn-proofed and optimized around — except endermen. They teleport straight through spawn-proofing into hidden pockets (deep underground, inside your base), and the moment one picks up a block, it sticks around far longer than it should, quietly eating into the mob cap and tanking spawn rates on any mob farm nearby. (And yes, they also just grief your builds overnight.)
 
@@ -7,7 +7,7 @@ This Fabric mod fixes that at the source, for Minecraft 1.21 singleplayer worlds
 ## Installation
 
 1. Requires [Fabric Loader](https://fabricmc.net/use/) (0.19.3+) and Minecraft 1.21.
-2. No Fabric API dependency required — this mod only uses `ModInitializer` and Mixin, both provided by Fabric Loader itself.
+2. No Fabric API dependency required.
 3. Drop the built jar into your `.minecraft/mods/` folder (or your server's `mods/` folder) and launch.
 
 ## How it works
@@ -21,18 +21,40 @@ Enderman block pickup and placement are each governed by a private AI goal insid
 ```json
 {
   "enabled": true,
-  "loggingEnabled": false
+  "loggingEnabled": false,
+  "logRemovals": true,
+  "heldBlockHandling": "auto-clear"
 }
 ```
 
-- `enabled` — whether enderman block pickup/placement is prevented.
-- `loggingEnabled` — announce every prevented pickup/placement, both in the log file and as a short, color-coded chat message (e.g. `[NoEndermanGrief] Denied pickup at (10, -60, -13).`), so it's visible without checking logs.
+- `enabled` — a true kill switch for the whole mod: not just whether pickup/placement is prevented, but also whether the held-block monitor does anything at all. While off, no discovery scanning, no tracking, no resolving happens - re-enabling is what picks any of that back up (see `armPendingDiscovery` in the code).
+- `loggingEnabled` (default **off**) — announce every prevented pickup/placement, both in the log file and as a short, color-coded chat message (e.g. `[Enderman] Denied pickup at (10, -60, -13).`). This repeats every time a pickup/placement is prevented, so it's off by default to avoid spam.
+- `logRemovals` (default **on**) — announce when a stuck holder is auto-cleared. Separate from `loggingEnabled` - a clear only ever fires once per enderman and confirms an actual problem just got fixed, so it defaults to on even with denial logging off.
+- `heldBlockHandling` — how an enderman already stuck holding a block (from before the mod was enabled, or a window where it was toggled off) is handled, checked every ~2 minutes:
+  - `"auto-clear"` (the default) — removes the carried block outright, nothing dropped. Resolved automatically, no configuration needed. A successful clear is logged/announced (`[Enderman] cleared a holder at (...)`, aqua) when `logRemovals` is on (the default).
+  - `"alert"` — instead of clearing, periodically re-announces the enderman's location (`[Enderman] holding a block at (...)`, gold — distinct from the light-purple denial messages above), so you can hunt it down and kill it yourself. Not gated by either logging toggle - choosing this mode is itself the opt-in. For players who'd rather nothing be resolved on their behalf automatically.
+  - `"off"` — leave it alone entirely.
 
-There's no per-world setting (unlike the Paper plugin) — singleplayer doesn't have Bukkit's multi-world-folder concept, so a single global toggle covers it. There's also no in-game reload command in this version; edit the file and restart, or add one later via Fabric's command registration if that turns out to matter in practice.
+There's no per-world setting (unlike the Paper plugin) — singleplayer doesn't have Bukkit's multi-world-folder concept, so a single global toggle covers it.
+
+All settings can be changed two ways: the `/enderman` command below (applies immediately, works everywhere including dedicated servers), or — singleplayer/self-host only, since it can't reach a separate dedicated server — [Mod Menu](https://modrinth.com/mod/modmenu)'s settings screen for this mod, if installed. That screen groups "Prevent Enderman Grief" and "Stuck Holders" under a "Mode" heading, and "Log Removals"/"Log Denied Attempts" under an "Announcements" heading below it. While "Prevent Enderman Grief" is off, the other three controls grey out (nothing else matters until it's back on). Cycling a button only changes what's displayed - nothing is applied until "Save & Quit" is pressed, so browsing through options (e.g. cycling past "Auto-Clear" on the way to "Off") can't trigger a real clear/alert along the way. "Cancel" discards every pending change, same as closing the screen any other way.
+
+## Commands & permission
+
+All subcommands live under `/enderman` and require permission level 2 (op). Tab-completion is available at every argument position.
+
+| Command | Does |
+|---|---|
+| `/enderman reload` | Reloads `config/no-enderman-grief.json` from disk |
+| `/enderman status` | Shows the current `enabled`/logging/held-block state |
+| `/enderman toggle [true\|false]` | Sets (or flips, if no value given) `enabled`, persisted to disk |
+| `/enderman set log-denials <true\|false>` | Changes `loggingEnabled`, persisted to disk |
+| `/enderman set log-removals <true\|false>` | Changes `logRemovals`, persisted to disk |
+| `/enderman set held-block <auto-clear\|alert\|off>` | Changes `heldBlockHandling`, persisted to disk |
 
 ## A note on maintenance
 
-Unlike the Paper plugin, which only calls long-stable public Bukkit API, this mod targets Minecraft's internal `EnderMan` AI goal classes via Mixin. Those internals can be restructured on any Minecraft version bump — a new version could rename, merge, or remove these goal classes even if enderman behavior itself doesn't change. If the mod stops building or stops working after a Minecraft update, the fix is to re-locate the equivalent goal classes/methods for the new version (e.g. via Loom's `genSources` task to decompile the new mappings) and update the two mixin target strings in `src/main/resources/no-enderman-grief.mixins.json` and the `@Mixin(targets = "...")` annotations accordingly.
+Unlike the Paper plugin, which only calls long-stable public Bukkit API, this mod targets Minecraft's internal `EnderMan` AI goal classes via Mixin. Those internals can be restructured on any Minecraft version bump — a new version could rename, merge, or remove these goal classes even if enderman behavior itself doesn't change. If the mod stops building or stops working after a Minecraft update, the fix is to re-locate the equivalent goal classes/methods for the new version (e.g. via Loom's `genSources` task to decompile the new mappings) and update the two mixin target strings in `src/main/resources/enderman-grief-control.mixins.json` and the `@Mixin(targets = "...")` annotations accordingly.
 
 ## Manual QA checklist
 
@@ -43,13 +65,21 @@ No MockBukkit-equivalent testing framework exists for Mixin-based mods at this s
 - [ ] Set `enabled: false` in `config/no-enderman-grief.json`, restart — confirm vanilla griefing behavior resumes.
 - [ ] Confirm other `mobGriefing`-gated behavior is unaffected: creepers still destroy terrain, villagers still farm.
 - [ ] With `loggingEnabled: true`, confirm a color-coded message appears in chat and the same message appears in the log file (`logs/latest.log`) for each prevented pickup/placement; with `false`, confirm both stay silent.
+- [ ] With Mod Menu installed, open its settings screen for this mod, confirm the "Mode" heading groups "Prevent Enderman Grief"/"Stuck Holders" and the "Announcements" heading groups "Log Removals"/"Log Denied Attempts". Toggle "Prevent Enderman Grief" off and confirm the other three controls grey out immediately (before Save & Quit); toggle it back on and confirm they re-enable. Cycle all settings, then press "Cancel" and confirm nothing actually changed (reopen the screen, or check `config/no-enderman-grief.json`) - especially that cycling "Stuck Holders" through "Auto-Clear" on the way to another value did not actually clear a real stuck holder. Then repeat and press "Save & Quit" instead, confirming all pending choices are applied and saved together. Hover each button and confirm the tooltip text matches the currently-selected state.
+- [ ] Without Mod Menu installed, confirm the game still launches normally (the integration is compile-time only and must not be required).
+- [ ] Run `/enderman status`, `/enderman toggle false`, `/enderman set log-denials true`, `/enderman set log-removals false`, `/enderman set held-block alert`, confirming tab-completion at every argument position (including the `auto-clear`/`alert`/`off` suggestions) and that `config/no-enderman-grief.json` reflects each change on disk.
+- [ ] Hand-edit `config/no-enderman-grief.json` externally, then run `/enderman reload` — confirm the change takes effect without restarting.
+- [ ] With `enabled: false`, confirm nothing held-block-related happens at all: pick up a block as an enderman (grief prevention is off, so this should work), wait several minutes, and confirm no discovery/resolution/clear ever occurs while still disabled - only re-enabling should pick it up.
+- [ ] `/summon minecraft:enderman ~ ~ ~ {carried_block:{Name:"minecraft:dirt"}}` (or toggle `enabled` off, let one pick up naturally, then toggle it back on) to create a stuck holder. With `heldBlockHandling: "auto-clear"` (the default) and `logRemovals: true` (the default), confirm the carried block is removed within ~2 minutes with nothing dropped, and `[Enderman] cleared a holder at (...)` is announced in aqua; confirm nothing is announced/logged with `logRemovals: false` even though the clear still happens, regardless of `loggingEnabled`.
+- [ ] With `heldBlockHandling: "alert"` (regardless of either logging toggle), confirm the same stuck enderman instead gets `holding a block at (...)` re-announced in gold every ~2 minutes without ever losing its carried block; killing it stops further alerts immediately.
+- [ ] With `heldBlockHandling: "off"`, confirm a stuck holder is neither announced nor cleared.
 
 ## Building from source
 
 ```bash
-git clone https://github.com/Jack-Underhill/No-Enderman-Grief.git
-cd No-Enderman-Grief/fabric-mod
+git clone https://github.com/Jack-Underhill/Enderman-Grief-Control.git
+cd Enderman-Grief-Control/fabric-mod
 ./gradlew build
 ```
 
-The built jar lands at `build/libs/EndermanGriefControl-mc_1.21-fabric-1.0.0.jar`.
+The built jar lands at `build/libs/EndermanGriefControl-mc_1.21-fabric-1.1.0.jar`.

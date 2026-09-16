@@ -1,6 +1,12 @@
 @echo off
 setlocal
 
+rem Load .env (if present) into this script's environment, e.g. ENDERMAN_GRIEF_TEST_MODE=true -
+rem picked up below by both builds since mvn/gradlew inherit it as a child process.
+if exist "%~dp0.env" (
+    for /f "usebackq eol=# tokens=1,* delims==" %%A in ("%~dp0.env") do set "%%A=%%B"
+)
+
 echo ============================================
 echo  Building release: Paper plugin
 echo ============================================

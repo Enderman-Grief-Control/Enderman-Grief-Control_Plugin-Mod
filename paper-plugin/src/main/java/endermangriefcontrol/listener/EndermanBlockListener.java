@@ -1,6 +1,6 @@
-package noendermangrief.listener;
+package endermangriefcontrol.listener;
 
-import noendermangrief.NoEndermanGriefPlugin;
+import endermangriefcontrol.EndermanGriefControlPlugin;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.EntityType;
@@ -18,9 +18,9 @@ import org.bukkit.event.entity.EntityChangeBlockEvent;
  */
 public final class EndermanBlockListener implements Listener {
 
-    private final NoEndermanGriefPlugin plugin;
+    private final EndermanGriefControlPlugin plugin;
 
-    public EndermanBlockListener(NoEndermanGriefPlugin plugin) {
+    public EndermanBlockListener(EndermanGriefControlPlugin plugin) {
         this.plugin = plugin;
     }
 

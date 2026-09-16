@@ -1,6 +1,6 @@
-package noendermangrief.listener;
+package endermangriefcontrol.listener;
 
-import noendermangrief.NoEndermanGriefPlugin;
+import endermangriefcontrol.EndermanGriefControlPlugin;
 import org.bukkit.Material;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
@@ -26,13 +26,13 @@ import static org.mockito.Mockito.when;
 class EndermanBlockListenerTest {
 
     private ServerMock server;
-    private NoEndermanGriefPlugin plugin;
+    private EndermanGriefControlPlugin plugin;
     private WorldMock world;
 
     @BeforeEach
     void setUp() {
         server = MockBukkit.mock();
-        plugin = MockBukkit.load(NoEndermanGriefPlugin.class);
+        plugin = MockBukkit.load(EndermanGriefControlPlugin.class);
         world = server.addSimpleWorld("world");
     }
 

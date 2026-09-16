@@ -9,4 +9,4 @@ pluginManagement {
 	}
 }
 
-rootProject.name = 'no-enderman-grief-fabric'
+rootProject.name = 'enderman-grief-control-fabric'

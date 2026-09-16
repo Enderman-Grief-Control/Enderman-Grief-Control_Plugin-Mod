@@ -1,23 +1,25 @@
-package noendermangrief;
+package endermangriefcontrol;
 
+import endermangriefcontrol.heldblock.HeldBlockHandling;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockbukkit.mockbukkit.MockBukkit;
 import org.mockbukkit.mockbukkit.ServerMock;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class NoEndermanGriefPluginTest {
+class EndermanGriefControlPluginTest {
 
     private ServerMock server;
-    private NoEndermanGriefPlugin plugin;
+    private EndermanGriefControlPlugin plugin;
 
     @BeforeEach
     void setUp() {
         server = MockBukkit.mock();
-        plugin = MockBukkit.load(NoEndermanGriefPlugin.class);
+        plugin = MockBukkit.load(EndermanGriefControlPlugin.class);
     }
 
     @AfterEach
@@ -56,5 +58,32 @@ class NoEndermanGriefPluginTest {
     @Test
     void isLoggingEnabled_reflectsConfigDefaultFalse() {
         assertFalse(plugin.isLoggingEnabled());
+    }
+
+    @Test
+    void getHeldBlockHandling_noConfigValue_defaultsToAutoClear() {
+        assertEquals(HeldBlockHandling.AUTO_CLEAR, plugin.getHeldBlockHandling("world"));
+    }
+
+    @Test
+    void getHeldBlockHandling_defaultOverride_appliesToAllUnlistedWorlds() {
+        plugin.getConfig().set("default-held-block-handling", "off");
+
+        assertEquals(HeldBlockHandling.OFF, plugin.getHeldBlockHandling("world"));
+    }
+
+    @Test
+    void getHeldBlockHandling_worldOverride_overridesDefault() {
+        plugin.getConfig().set("held-block-worlds.world_the_end", "alert");
+
+        assertEquals(HeldBlockHandling.ALERT, plugin.getHeldBlockHandling("world_the_end"));
+        assertEquals(HeldBlockHandling.AUTO_CLEAR, plugin.getHeldBlockHandling("world"));
+    }
+
+    @Test
+    void getHeldBlockHandling_unrecognizedValue_fallsBackToDefault() {
+        plugin.getConfig().set("held-block-worlds.world_nether", "bogus");
+
+        assertEquals(HeldBlockHandling.AUTO_CLEAR, plugin.getHeldBlockHandling("world_nether"));
     }
 }
