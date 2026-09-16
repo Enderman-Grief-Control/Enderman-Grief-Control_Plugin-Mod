@@ -15,7 +15,7 @@
     <!-- Use Java 21 for compilation -->
     <properties>
         <!-- Release version by default (plain `mvn package`). For a dev build with a
-             qualifier, override on the command line: mvn package -Drevision=1.0.0-SNAPSHOT -->
+             qualifier, override on the command line: mvn package -Drevision=1.1.0-SNAPSHOT -->
         <revision>1.1.0</revision>
         <minecraft.version>1.21</minecraft.version>
         <maven.compiler.release>21</maven.compiler.release>
