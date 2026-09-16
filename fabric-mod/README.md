@@ -54,7 +54,7 @@ All subcommands live under `/enderman` and require permission level 2 (op). Tab-
 
 ## A note on maintenance
 
-Unlike the Paper plugin, which only calls long-stable public Bukkit API, this mod targets Minecraft's internal `EnderMan` AI goal classes via Mixin. Those internals can be restructured on any Minecraft version bump — a new version could rename, merge, or remove these goal classes even if enderman behavior itself doesn't change. If the mod stops building or stops working after a Minecraft update, the fix is to re-locate the equivalent goal classes/methods for the new version (e.g. via Loom's `genSources` task to decompile the new mappings) and update the two mixin target strings in `src/main/resources/no-enderman-grief.mixins.json` and the `@Mixin(targets = "...")` annotations accordingly.
+Unlike the Paper plugin, which only calls long-stable public Bukkit API, this mod targets Minecraft's internal `EnderMan` AI goal classes via Mixin. Those internals can be restructured on any Minecraft version bump — a new version could rename, merge, or remove these goal classes even if enderman behavior itself doesn't change. If the mod stops building or stops working after a Minecraft update, the fix is to re-locate the equivalent goal classes/methods for the new version (e.g. via Loom's `genSources` task to decompile the new mappings) and update the two mixin target strings in `src/main/resources/enderman-grief-control.mixins.json` and the `@Mixin(targets = "...")` annotations accordingly.
 
 ## Manual QA checklist
 
