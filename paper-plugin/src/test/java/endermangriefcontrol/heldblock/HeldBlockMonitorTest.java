@@ -103,18 +103,25 @@ class HeldBlockMonitorTest {
     }
 
     @Test
-    void armPendingDiscovery_playerOnline_runsDiscoveryImmediately() {
+    void armPendingDiscovery_playerOnline_runsDiscoveryAndResolutionImmediately() {
+        // "alert" (not the AUTO_CLEAR default) to stay clear of the MockBukkit limitation noted
+        // above - armPendingDiscovery resolves as well as discovers now, so this exercises that.
+        plugin.getConfig().set("default-held-block-handling", "alert");
         server.addPlayer();
         spawnHolder();
+        List<LogRecord> records = captureLogRecords();
 
         monitor.armPendingDiscovery();
 
         assertTrue(monitor.isTrackingAnyHolder());
+        assertTrue(records.stream().anyMatch(r -> r.getMessage().equals("holding a block at (10, 64, -30).")));
     }
 
     @Test
-    void armPendingDiscovery_noPlayerOnline_waitsThenFindsHolderOncePlayerJoins() {
+    void armPendingDiscovery_noPlayerOnline_waitsThenResolvesOncePlayerJoins() {
+        plugin.getConfig().set("default-held-block-handling", "alert");
         spawnHolder();
+        List<LogRecord> records = captureLogRecords();
 
         monitor.armPendingDiscovery();
         assertFalse(monitor.isTrackingAnyHolder());
@@ -123,6 +130,7 @@ class HeldBlockMonitorTest {
         server.getScheduler().performTicks(20L * 5 + 1); // past the eligibility poll's first tick
 
         assertTrue(monitor.isTrackingAnyHolder());
+        assertTrue(records.stream().anyMatch(r -> r.getMessage().equals("holding a block at (10, 64, -30).")));
     }
 
     @Test

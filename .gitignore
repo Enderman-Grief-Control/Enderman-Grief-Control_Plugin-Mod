@@ -33,3 +33,6 @@ Thumbs.db
 # === Personal ===
 .env
 local/
+
+# === Local test servers (real Paper/Fabric server installs for manual QA) ===
+/test-servers/

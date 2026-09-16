@@ -4,12 +4,15 @@ import endermangriefcontrol.debug.TestModeLogger;
 import endermangriefcontrol.heldblock.HeldBlockHandling;
 import endermangriefcontrol.heldblock.HeldBlockMonitor;
 import endermangriefcontrol.listener.EndermanBlockListener;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Enderman;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.Collections;
@@ -163,24 +166,35 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
     }
 
     /**
-     * Logs that an enderman's block pickup or placement was denied. Bukkit's logger already
-     * prefixes console output with "[EndermanGriefControl]" and its own timestamp, so the message
-     * itself stays short.
+     * Logs that an enderman's block pickup or placement was denied - to the console (Bukkit's
+     * logger already prefixes output with "[EndermanGriefControl]" and its own timestamp, so the
+     * message itself stays short) and, matching the Fabric mod's chat announcements, to every
+     * player currently in that world.
      */
     public void logEndermanBlockCancel(Block block, String action) {
         String coords = block.getX() + ", " + block.getY() + ", " + block.getZ();
         getLogger().info("Denied " + action + " at (" + coords + ").");
+
+        broadcastToWorld(block.getWorld(), Component.text("[Enderman] ", NamedTextColor.LIGHT_PURPLE)
+                .append(Component.text("Denied " + action + " at ", NamedTextColor.GRAY))
+                .append(Component.text("(" + coords + ").", NamedTextColor.GREEN)));
     }
 
     /**
      * Logs that an enderman is still stuck holding a block it can no longer place - deliberately
      * worded distinctly from {@link #logEndermanBlockCancel} so it doesn't blend into routine
-     * denial logging when read in a console/log file.
+     * denial logging when read in a console/log file or in chat. Not gated by
+     * {@link #isLoggingEnabled()} - choosing "alert" as the held-block handling mode is itself the
+     * opt-in.
      */
     public void logHeldBlockAlert(Enderman enderman) {
         String coords = enderman.getLocation().getBlockX() + ", " + enderman.getLocation().getBlockY()
                 + ", " + enderman.getLocation().getBlockZ();
         getLogger().info("holding a block at (" + coords + ").");
+
+        broadcastToWorld(enderman.getWorld(), Component.text("[Enderman] ", NamedTextColor.GOLD)
+                .append(Component.text("holding a block at ", NamedTextColor.GRAY))
+                .append(Component.text("(" + coords + ").", NamedTextColor.GREEN)));
     }
 
     /**
@@ -195,6 +209,22 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
         String coords = enderman.getLocation().getBlockX() + ", " + enderman.getLocation().getBlockY()
                 + ", " + enderman.getLocation().getBlockZ();
         getLogger().info("cleared a holder at (" + coords + ").");
+
+        broadcastToWorld(enderman.getWorld(), Component.text("[Enderman] ", NamedTextColor.AQUA)
+                .append(Component.text("holding cleared at ", NamedTextColor.GRAY))
+                .append(Component.text("(" + coords + ").", NamedTextColor.GREEN)));
+    }
+
+    /**
+     * Sends a chat message to every player currently in the given world - grief events are
+     * inherently per-world here (unlike the Fabric mod, which has no multi-world concept and just
+     * broadcasts server-wide), so a denial/alert/clear in one world shouldn't spam players in
+     * another.
+     */
+    private void broadcastToWorld(World world, Component message) {
+        for (Player player : world.getPlayers()) {
+            player.sendMessage(message);
+        }
     }
 
     private static final List<String> SUBCOMMANDS = List.of("reload", "status", "toggle", "held-block", "set");

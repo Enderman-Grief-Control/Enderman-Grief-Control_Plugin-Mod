@@ -34,9 +34,14 @@ import java.util.UUID;
  * that instant no player has necessarily loaded the chunks a legacy holder sits in yet (a scan there
  * can come back empty even though the world is otherwise fine) - but those two events are still the
  * right moments to *want* an instant result, since whoever triggered them is typically already
- * online to see it. So each is handled by {@link #armPendingDiscovery()}: run immediately if a
- * player's already online, otherwise poll every few seconds until one is, then run once and stop
- * polling. Separately, a slower periodic pass re-scans and resolves on a fixed interval for as long
+ * online to see it. So each is handled by {@link #armPendingDiscovery()}: discover and resolve
+ * immediately if a player's already online, otherwise poll every few seconds until one is, then run
+ * once and stop polling. Resolving right alongside discovery (not just discovering) is what makes
+ * re-enabling actually clear/alert on a holder picked up while disabled instead of leaving it
+ * sitting until the next periodic pass, up to {@value #RESOLUTION_PERIOD_SECONDS}s later - and it's
+ * handled here, at the one spot both the command and the Mod Menu screen's "enabled" toggle funnel
+ * through, rather than something a caller has to separately remember to trigger. Separately, a
+ * slower periodic pass re-scans and resolves on a fixed interval for as long
  * as the mod stays enabled - it's the backstop for holders that only become findable long after
  * startup (a relocated base, a chunk that unloaded and reloaded, etc). A UUID is only ever removed
  * explicitly (resolved via clearing, or the enderman died) - never inferred from a lookup miss,
@@ -80,7 +85,7 @@ public final class HeldBlockMonitor {
 
         if (server != null && !server.getPlayerList().getPlayers().isEmpty()) {
             TestModeLogger.log("armPendingDiscovery: player already online, running discovery now.");
-            runDiscoveryScan();
+            runDiscoveryAndResolutionPass();
             return;
         }
 
@@ -98,6 +103,11 @@ public final class HeldBlockMonitor {
      * known-holders set. Never removes anything - absence from this scan doesn't mean resolved, it
      * could just mean unloaded. A no-op before the server has started (nothing to scan yet).
      */
+    void runDiscoveryAndResolutionPass() {
+        runDiscoveryScan();
+        runResolutionPass();
+    }
+
     public void runDiscoveryScan() {
         if (server == null || !EndermanGriefControlMod.getConfig().enabled) {
             return;
@@ -122,13 +132,12 @@ public final class HeldBlockMonitor {
                 && tickCounter % ELIGIBILITY_POLL_PERIOD_TICKS == 0
                 && !tickedServer.getPlayerList().getPlayers().isEmpty()) {
             TestModeLogger.log("armPendingDiscovery: eligibility poll succeeded, running discovery.");
-            runDiscoveryScan();
+            runDiscoveryAndResolutionPass();
             pendingEligibilityCheck = false;
         }
 
         if (tickCounter % RESOLUTION_PERIOD_TICKS == 0) {
-            runDiscoveryScan();
-            runResolutionPass();
+            runDiscoveryAndResolutionPass();
         }
     }
 

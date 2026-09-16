@@ -33,6 +33,12 @@ dependencies {
 	// Menu installed, this entrypoint is simply never invoked, so it's not a hard dependency.
 	modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
 
+	// fabric-api-base is a hard dependency declared by all three modules included below
+	// (command-api-v2, lifecycle-events-v1, entity-events-v1) - without it jar-in-jar'd
+	// here too, Fabric Loader refuses to load any of them on a real server.
+	modImplementation "net.fabricmc.fabric-api:fabric-api-base:${project.fabric_api_base_version}"
+	include "net.fabricmc.fabric-api:fabric-api-base:${project.fabric_api_base_version}"
+
 	// The in-game command needs a registration hook, which vanilla Fabric Loader doesn't
 	// expose on its own. fabric-command-api-v2 is a small, focused module (not the full
 	// Fabric API umbrella jar) purpose-built for this. `include` bundles it (jar-in-jar)

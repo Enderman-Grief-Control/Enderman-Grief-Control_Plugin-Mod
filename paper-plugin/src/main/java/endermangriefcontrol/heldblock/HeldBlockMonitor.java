@@ -31,9 +31,14 @@ import java.util.UUID;
  * at that instant no player has necessarily loaded the chunks a legacy holder sits in yet (a scan
  * there can come back empty even though the world is otherwise fine) - but those two events are
  * still the right moments to *want* an instant result, since whoever triggered them is typically
- * already online to see it. So each is handled by {@link #armPendingDiscovery()}: run immediately
- * if a player's already online, otherwise poll every few seconds until one is, then run once and
- * stop polling. Separately, a slower periodic pass re-scans and resolves on a fixed interval for
+ * already online to see it. So each is handled by {@link #armPendingDiscovery()}: discover and
+ * resolve immediately if a player's already online, otherwise poll every few seconds until one is,
+ * then run once and stop polling. Resolving right alongside discovery (not just discovering) is
+ * what makes re-enabling actually clear/alert on a holder picked up while disabled instead of
+ * leaving it sitting until the next periodic pass, up to {@value #RESOLUTION_PERIOD_SECONDS}s
+ * later - and it's handled here, at the one spot every command that flips a world's enabled state
+ * funnels through, rather than something a caller has to separately remember to trigger.
+ * Separately, a slower periodic pass re-scans and resolves on a fixed interval for
  * the entire plugin lifetime - it's the backstop for holders that only become findable long after
  * startup (a relocated base, a chunk that unloaded and reloaded, etc). A UUID is only ever removed
  * explicitly (resolved via clearing, or the enderman died) — never inferred from a lookup miss,
@@ -80,7 +85,7 @@ public final class HeldBlockMonitor implements Listener {
     public void armPendingDiscovery() {
         if (!plugin.getServer().getOnlinePlayers().isEmpty()) {
             TestModeLogger.log("armPendingDiscovery: player already online, running discovery now.");
-            runDiscoveryScan();
+            runDiscoveryAndResolutionPass();
             return;
         }
 
@@ -100,7 +105,7 @@ public final class HeldBlockMonitor implements Listener {
         }
 
         TestModeLogger.log("armPendingDiscovery: eligibility poll succeeded, running discovery.");
-        runDiscoveryScan();
+        runDiscoveryAndResolutionPass();
         eligibilityPollTask.cancel();
         eligibilityPollTask = null;
     }
