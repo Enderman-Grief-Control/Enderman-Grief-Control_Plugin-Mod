@@ -12,6 +12,14 @@
     <name>EndermanGriefControl</name>
     <description>Prevents endermen from picking up or placing blocks while keeping all other mob behavior vanilla.</description>
 
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
     <!-- Use Java 21 for compilation -->
     <properties>
         <!-- Release version by default (plain `mvn package`). For a dev build with a

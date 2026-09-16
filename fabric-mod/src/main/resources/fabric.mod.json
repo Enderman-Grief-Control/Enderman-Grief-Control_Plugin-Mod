@@ -8,7 +8,7 @@
 	"contact": {
 		"sources": "https://github.com/Jack-Underhill/Enderman-Grief-Control"
 	},
-	"license": "MIT",
+	"license": "Apache-2.0",
 	"icon": "assets/enderman-grief-control/icon.png",
 	"environment": "*",
 	"entrypoints": {

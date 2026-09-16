@@ -62,4 +62,4 @@ Both projects are small and deliberately minimal — see each README's "How it w
 
 ## License
 
-[MIT](LICENSE)
+[Apache 2.0](LICENSE)
