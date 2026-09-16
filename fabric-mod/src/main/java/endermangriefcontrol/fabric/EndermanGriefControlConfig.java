@@ -16,6 +16,12 @@ public final class EndermanGriefControlConfig {
 
     public boolean enabled = true;
     public boolean loggingEnabled = false;
+    public boolean logRemovals = true;
+
+    // How a stuck holder (an enderman already carrying a block placement can no longer clear) is
+    // handled: "auto-clear" (default, resolves it automatically), "alert" (periodically re-logs
+    // its location for manual hunting instead), or "off". See HeldBlockHandling.
+    public String heldBlockHandling = "auto-clear";
 
     public static EndermanGriefControlConfig load() {
         if (Files.exists(CONFIG_PATH)) {

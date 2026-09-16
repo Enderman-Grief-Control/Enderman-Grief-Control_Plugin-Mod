@@ -8,7 +8,7 @@ api-version: '1.21'
 commands:
   enderman:
     description: Manage EndermanGriefControl settings.
-    usage: /enderman <reload|status|toggle|set>
+    usage: /enderman <reload|status|toggle|held-block|set>
     # Permission is checked manually in onCommand (with a custom denial
     # message) rather than declared here, since declaring it here would
     # make Bukkit auto-gate the command with its own generic message

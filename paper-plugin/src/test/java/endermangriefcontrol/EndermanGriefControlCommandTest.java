@@ -1,5 +1,6 @@
 package endermangriefcontrol;
 
+import endermangriefcontrol.heldblock.HeldBlockHandling;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -7,6 +8,7 @@ import org.mockbukkit.mockbukkit.MockBukkit;
 import org.mockbukkit.mockbukkit.ServerMock;
 import org.mockbukkit.mockbukkit.entity.PlayerMock;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -56,7 +58,7 @@ class EndermanGriefControlCommandTest {
 
         server.dispatchCommand(player, "enderman");
 
-        player.assertSaid("Usage: /enderman <reload|status|toggle|set>");
+        player.assertSaid("Usage: /enderman <reload|status|toggle|held-block|set>");
     }
 
     @Test
@@ -65,7 +67,7 @@ class EndermanGriefControlCommandTest {
 
         server.dispatchCommand(player, "enderman status");
 
-        player.assertSaid("Default: enabled, logging: disabled");
+        player.assertSaid("Default: enabled, log denials: disabled, log removals: enabled, held-block: auto-clear");
     }
 
     @Test
@@ -75,7 +77,7 @@ class EndermanGriefControlCommandTest {
 
         server.dispatchCommand(player, "enderman status world_nether");
 
-        player.assertSaid("World 'world_nether': disabled");
+        player.assertSaid("World 'world_nether': disabled, held-block: auto-clear");
     }
 
     @Test
@@ -99,13 +101,23 @@ class EndermanGriefControlCommandTest {
     }
 
     @Test
-    void setLogging_updatesConfigAndPersists() {
+    void setLogDenials_updatesConfigAndPersists() {
         PlayerMock player = authorizedPlayer();
 
-        server.dispatchCommand(player, "enderman set logging true");
+        server.dispatchCommand(player, "enderman set log-denials true");
 
-        player.assertSaid("Logging is now enabled.");
+        player.assertSaid("Log denials is now enabled.");
         assertTrue(plugin.isLoggingEnabled());
+    }
+
+    @Test
+    void setLogRemovals_updatesConfigAndPersists() {
+        PlayerMock player = authorizedPlayer();
+
+        server.dispatchCommand(player, "enderman set log-removals false");
+
+        player.assertSaid("Log removals is now disabled.");
+        assertFalse(plugin.isRemovalsLoggingEnabled());
     }
 
     @Test
@@ -119,11 +131,50 @@ class EndermanGriefControlCommandTest {
     }
 
     @Test
+    void heldBlock_setsWorldOverrideAndPersists() {
+        PlayerMock player = authorizedPlayer();
+
+        server.dispatchCommand(player, "enderman held-block world_nether alert");
+
+        player.assertSaid("Held-block handling for world 'world_nether' is now alert.");
+        assertEquals(HeldBlockHandling.ALERT, plugin.getHeldBlockHandling("world_nether"));
+        assertEquals(HeldBlockHandling.AUTO_CLEAR, plugin.getHeldBlockHandling("world"));
+    }
+
+    @Test
+    void heldBlock_unrecognizedMode_sendsUsage() {
+        PlayerMock player = authorizedPlayer();
+
+        server.dispatchCommand(player, "enderman held-block world_nether bogus");
+
+        player.assertSaid("Usage: /enderman held-block <world> <auto-clear|alert|off>");
+    }
+
+    @Test
+    void setHeldBlockDefault_updatesConfigAndPersists() {
+        PlayerMock player = authorizedPlayer();
+
+        server.dispatchCommand(player, "enderman set held-block-default off");
+
+        player.assertSaid("Default held-block handling is now off.");
+        assertEquals(HeldBlockHandling.OFF, plugin.getHeldBlockHandling("world"));
+    }
+
+    @Test
+    void setHeldBlockDefault_unrecognizedMode_sendsUsage() {
+        PlayerMock player = authorizedPlayer();
+
+        server.dispatchCommand(player, "enderman set held-block-default bogus");
+
+        player.assertSaid("Usage: /enderman set held-block-default <auto-clear|alert|off>");
+    }
+
+    @Test
     void unknownSubcommand_sendsUsage() {
         PlayerMock player = authorizedPlayer();
 
         server.dispatchCommand(player, "enderman bogus");
 
-        player.assertSaid("Unknown subcommand. Usage: /enderman <reload|status|toggle|set>");
+        player.assertSaid("Unknown subcommand. Usage: /enderman <reload|status|toggle|held-block|set>");
     }
 }
