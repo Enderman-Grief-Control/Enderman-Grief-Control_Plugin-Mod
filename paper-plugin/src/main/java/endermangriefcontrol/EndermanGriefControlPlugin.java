@@ -8,6 +8,7 @@ import endermangriefcontrol.message.PaperChatBroadcaster;
 import endermangriefcontrol.message.PaperMessageTemplateLoader;
 import endermangriefcontrol.messaging.GriefControlMessages;
 import endermangriefcontrol.messaging.MessageTemplates;
+import net.kyori.adventure.text.Component;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.command.Command;
@@ -233,12 +234,12 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
         }
 
         if (!sender.hasPermission("endermangriefcontrol.admin")) {
-            sender.sendMessage("You do not have permission to use this command.");
+            sender.sendMessage(Component.text("You do not have permission to use this command."));
             return true;
         }
 
         if (args.length == 0) {
-            sender.sendMessage("Usage: /enderman <reload|status|toggle|held-block|set>");
+            sender.sendMessage(Component.text("Usage: /enderman <reload|status|toggle|held-block|set>"));
             return true;
         }
 
@@ -248,7 +249,7 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
             case "toggle" -> handleToggle(sender, args);
             case "held-block" -> handleHeldBlock(sender, args);
             case "set" -> handleSet(sender, args);
-            default -> sender.sendMessage("Unknown subcommand. Usage: /enderman <reload|status|toggle|held-block|set>");
+            default -> sender.sendMessage(Component.text("Unknown subcommand. Usage: /enderman <reload|status|toggle|held-block|set>"));
         }
         return true;
     }
@@ -257,71 +258,71 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
         reloadConfig();
         messageTemplates = PaperMessageTemplateLoader.load(getConfig());
         heldBlockMonitor.armPendingDiscovery(); // Config may have re-enabled worlds by hand-edit.
-        sender.sendMessage("EndermanGriefControl configuration reloaded.");
+        sender.sendMessage(Component.text("EndermanGriefControl configuration reloaded."));
         getLogger().info("Configuration reloaded by " + sender.getName());
     }
 
     private void handleStatus(CommandSender sender, String[] args) {
         if (args.length >= 2) {
             String world = args[1];
-            sender.sendMessage("World '" + world + "': " + (isWorldEnabled(world) ? "enabled" : "disabled")
-                    + ", held-block: " + getHeldBlockHandling(world).toConfigValue());
+            sender.sendMessage(Component.text("World '" + world + "': " + (isWorldEnabled(world) ? "enabled" : "disabled")
+                    + ", held-block: " + getHeldBlockHandling(world).toConfigValue()));
             return;
         }
 
         boolean defaultEnabled = getConfig().getBoolean("default-enabled", true);
-        sender.sendMessage("Default: " + (defaultEnabled ? "enabled" : "disabled")
+        sender.sendMessage(Component.text("Default: " + (defaultEnabled ? "enabled" : "disabled")
                 + ", log denials: " + (isLoggingEnabled() ? "enabled" : "disabled")
                 + ", log removals: " + (isRemovalsLoggingEnabled() ? "enabled" : "disabled")
-                + ", held-block: " + getDefaultHeldBlockHandling().toConfigValue());
+                + ", held-block: " + getDefaultHeldBlockHandling().toConfigValue()));
 
         ConfigurationSection worldsSection = getConfig().getConfigurationSection("worlds");
         if (worldsSection != null) {
             for (String world : worldsSection.getKeys(false)) {
-                sender.sendMessage("  " + world + ": " + (worldsSection.getBoolean(world) ? "enabled" : "disabled"));
+                sender.sendMessage(Component.text("  " + world + ": " + (worldsSection.getBoolean(world) ? "enabled" : "disabled")));
             }
         }
 
         ConfigurationSection heldBlockWorldsSection = getConfig().getConfigurationSection("held-block-worlds");
         if (heldBlockWorldsSection != null) {
             for (String world : heldBlockWorldsSection.getKeys(false)) {
-                sender.sendMessage("  " + world + " held-block: " + getHeldBlockHandling(world).toConfigValue());
+                sender.sendMessage(Component.text("  " + world + " held-block: " + getHeldBlockHandling(world).toConfigValue()));
             }
         }
     }
 
     private void handleToggle(CommandSender sender, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage("Usage: /enderman toggle <world> [true|false]");
+            sender.sendMessage(Component.text("Usage: /enderman toggle <world> [true|false]"));
             return;
         }
 
         String world = args[1];
         boolean newValue = args.length >= 3 ? Boolean.parseBoolean(args[2]) : !isWorldEnabled(world);
         setWorldEnabled(world, newValue);
-        sender.sendMessage("World '" + world + "' is now " + (newValue ? "enabled" : "disabled") + ".");
+        sender.sendMessage(Component.text("World '" + world + "' is now " + (newValue ? "enabled" : "disabled") + "."));
     }
 
     private void handleHeldBlock(CommandSender sender, String[] args) {
         if (args.length < 3) {
-            sender.sendMessage("Usage: /enderman held-block <world> <auto-clear|alert|off>");
+            sender.sendMessage(Component.text("Usage: /enderman held-block <world> <auto-clear|alert|off>"));
             return;
         }
 
         String world = args[1];
         HeldBlockHandling mode = HeldBlockHandling.fromConfig(args[2], null);
         if (mode == null) {
-            sender.sendMessage("Usage: /enderman held-block <world> <auto-clear|alert|off>");
+            sender.sendMessage(Component.text("Usage: /enderman held-block <world> <auto-clear|alert|off>"));
             return;
         }
 
         setWorldHeldBlockHandling(world, mode);
-        sender.sendMessage("Held-block handling for world '" + world + "' is now " + mode.toConfigValue() + ".");
+        sender.sendMessage(Component.text("Held-block handling for world '" + world + "' is now " + mode.toConfigValue() + "."));
     }
 
     private void handleSet(CommandSender sender, String[] args) {
         if (args.length < 3) {
-            sender.sendMessage("Usage: /enderman set <default|log-denials|log-removals|held-block-default> <value>");
+            sender.sendMessage(Component.text("Usage: /enderman set <default|log-denials|log-removals|held-block-default> <value>"));
             return;
         }
 
@@ -329,30 +330,30 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
             case "default" -> {
                 boolean value = Boolean.parseBoolean(args[2]);
                 setDefaultEnabled(value);
-                sender.sendMessage("Default is now " + (value ? "enabled" : "disabled") + ".");
+                sender.sendMessage(Component.text("Default is now " + (value ? "enabled" : "disabled") + "."));
             }
             case "log-denials" -> {
                 boolean value = Boolean.parseBoolean(args[2]);
                 getConfig().set("logging.enabled", value);
                 saveConfig();
-                sender.sendMessage("Log denials is now " + (value ? "enabled" : "disabled") + ".");
+                sender.sendMessage(Component.text("Log denials is now " + (value ? "enabled" : "disabled") + "."));
             }
             case "log-removals" -> {
                 boolean value = Boolean.parseBoolean(args[2]);
                 getConfig().set("logging.removals", value);
                 saveConfig();
-                sender.sendMessage("Log removals is now " + (value ? "enabled" : "disabled") + ".");
+                sender.sendMessage(Component.text("Log removals is now " + (value ? "enabled" : "disabled") + "."));
             }
             case "held-block-default" -> {
                 HeldBlockHandling mode = HeldBlockHandling.fromConfig(args[2], null);
                 if (mode == null) {
-                    sender.sendMessage("Usage: /enderman set held-block-default <auto-clear|alert|off>");
+                    sender.sendMessage(Component.text("Usage: /enderman set held-block-default <auto-clear|alert|off>"));
                     return;
                 }
                 setDefaultHeldBlockHandling(mode);
-                sender.sendMessage("Default held-block handling is now " + mode.toConfigValue() + ".");
+                sender.sendMessage(Component.text("Default held-block handling is now " + mode.toConfigValue() + "."));
             }
-            default -> sender.sendMessage("Usage: /enderman set <default|log-denials|log-removals|held-block-default> <value>");
+            default -> sender.sendMessage(Component.text("Usage: /enderman set <default|log-denials|log-removals|held-block-default> <value>"));
         }
     }
 
