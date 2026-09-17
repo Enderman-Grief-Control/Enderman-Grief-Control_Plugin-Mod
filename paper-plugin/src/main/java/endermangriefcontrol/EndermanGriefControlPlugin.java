@@ -5,6 +5,7 @@ import endermangriefcontrol.heldblock.HeldBlockHandling;
 import endermangriefcontrol.heldblock.HeldBlockMonitor;
 import endermangriefcontrol.listener.EndermanBlockListener;
 import endermangriefcontrol.message.PaperChatBroadcaster;
+import endermangriefcontrol.message.PaperMessageTemplateLoader;
 import endermangriefcontrol.messaging.GriefControlMessages;
 import endermangriefcontrol.messaging.MessageTemplates;
 import org.bukkit.World;
@@ -31,12 +32,14 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
 
     private HeldBlockMonitor heldBlockMonitor;
     private final PaperChatBroadcaster chatBroadcaster = new PaperChatBroadcaster(this);
+    private MessageTemplates messageTemplates = MessageTemplates.DEFAULTS;
 
     @Override
     public void onEnable() {
         // Ensure default config.yml is saved to the plugin data folder
         // (plugins/EndermanGriefControl/config.yml) if it does not exist.
         saveDefaultConfig();
+        messageTemplates = PaperMessageTemplateLoader.load(getConfig());
         TestModeLogger.init(this);
 
         getLogger().info("EndermanGriefControl is enabling...");
@@ -177,7 +180,7 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
         getLogger().info("Denied " + action + " at (" + coords + ").");
 
         chatBroadcaster.broadcastToWorld(block.getWorld(),
-                GriefControlMessages.denied(MessageTemplates.DEFAULTS, action, coords));
+                GriefControlMessages.denied(messageTemplates, action, coords));
     }
 
     /**
@@ -193,7 +196,7 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
         getLogger().info("holding a block at (" + coords + ").");
 
         chatBroadcaster.broadcastToWorld(enderman.getWorld(),
-                GriefControlMessages.heldBlockAlert(MessageTemplates.DEFAULTS, coords));
+                GriefControlMessages.heldBlockAlert(messageTemplates, coords));
     }
 
     /**
@@ -210,7 +213,7 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
         getLogger().info("cleared a holder at (" + coords + ").");
 
         chatBroadcaster.broadcastToWorld(enderman.getWorld(),
-                GriefControlMessages.heldBlockCleared(MessageTemplates.DEFAULTS, coords));
+                GriefControlMessages.heldBlockCleared(messageTemplates, coords));
     }
 
     private static final List<String> SUBCOMMANDS = List.of("reload", "status", "toggle", "held-block", "set");
@@ -252,6 +255,7 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
 
     private void handleReload(CommandSender sender) {
         reloadConfig();
+        messageTemplates = PaperMessageTemplateLoader.load(getConfig());
         heldBlockMonitor.armPendingDiscovery(); // Config may have re-enabled worlds by hand-edit.
         sender.sendMessage("EndermanGriefControl configuration reloaded.");
         getLogger().info("Configuration reloaded by " + sender.getName());

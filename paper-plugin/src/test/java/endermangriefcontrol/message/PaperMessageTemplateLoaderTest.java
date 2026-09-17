@@ -1,0 +1,75 @@
+package endermangriefcontrol.message;
+
+import endermangriefcontrol.messaging.MessageTemplates;
+import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.configuration.file.YamlConfiguration;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+class PaperMessageTemplateLoaderTest {
+
+    @Test
+    void noMessagesSection_fallsBackToDefaults() {
+        YamlConfiguration config = new YamlConfiguration();
+
+        assertEquals(MessageTemplates.DEFAULTS, PaperMessageTemplateLoader.load(config));
+    }
+
+    @Test
+    void customConfig_overridesWordingAndColors() {
+        YamlConfiguration config = new YamlConfiguration();
+        config.set("messages.prefix", "[Custom] ");
+        config.set("messages.denied.prefix-color", "red");
+        config.set("messages.denied.body", "Blocked {action} near ");
+        config.set("messages.denied.body-color", "white");
+        config.set("messages.denied.coords-color", "blue");
+
+        MessageTemplates templates = PaperMessageTemplateLoader.load(config);
+
+        assertEquals("[Custom] ", templates.prefixText());
+        assertEquals(NamedTextColor.RED, templates.denied().prefixColor());
+        assertEquals("Blocked {action} near ", templates.denied().body());
+        assertEquals(NamedTextColor.WHITE, templates.denied().bodyColor());
+        assertEquals(NamedTextColor.BLUE, templates.denied().coordsColor());
+        // Untouched templates keep their defaults.
+        assertEquals(MessageTemplates.DEFAULTS.heldBlockAlert(), templates.heldBlockAlert());
+        assertEquals(MessageTemplates.DEFAULTS.heldBlockCleared(), templates.heldBlockCleared());
+    }
+
+    @Test
+    void unrecognizedColor_fallsBackToDefaultInsteadOfFailing() {
+        YamlConfiguration config = new YamlConfiguration();
+        config.set("messages.denied.prefix-color", "not-a-real-color");
+
+        MessageTemplates templates = PaperMessageTemplateLoader.load(config);
+
+        assertEquals(MessageTemplates.DEFAULTS.denied().prefixColor(), templates.denied().prefixColor());
+    }
+
+    @Test
+    void fullExampleYaml_roundTripsExactlyToDefaults() {
+        String yaml = """
+                messages:
+                  prefix: "[Enderman] "
+                  denied:
+                    prefix-color: light_purple
+                    body: "Denied {action} at "
+                    body-color: gray
+                    coords-color: green
+                  held-block-alert:
+                    prefix-color: gold
+                    body: "holding a block at "
+                    body-color: gray
+                    coords-color: green
+                  held-block-cleared:
+                    prefix-color: aqua
+                    body: "holding cleared at "
+                    body-color: gray
+                    coords-color: green
+                """;
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(new java.io.StringReader(yaml));
+
+        assertEquals(MessageTemplates.DEFAULTS, PaperMessageTemplateLoader.load(config));
+    }
+}

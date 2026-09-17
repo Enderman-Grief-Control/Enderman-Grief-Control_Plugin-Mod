@@ -11,7 +11,6 @@ import endermangriefcontrol.fabric.heldblock.HeldBlockHandling;
 import endermangriefcontrol.fabric.heldblock.HeldBlockMonitor;
 import endermangriefcontrol.fabric.message.FabricChatBroadcaster;
 import endermangriefcontrol.messaging.GriefControlMessages;
-import endermangriefcontrol.messaging.MessageTemplates;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -92,7 +91,7 @@ public final class EndermanGriefControlMod implements ModInitializer {
         LOGGER.info("[Enderman] Denied " + action + " at (" + coords + ").");
 
         if (enderman.level() instanceof ServerLevel serverLevel) {
-            Component chatMessage = GriefControlMessages.denied(MessageTemplates.DEFAULTS, action, coords);
+            Component chatMessage = GriefControlMessages.denied(config.messages.toMessageTemplates(), action, coords);
             CHAT_BROADCASTER.broadcastToWorld(serverLevel, chatMessage);
         }
     }
@@ -111,7 +110,7 @@ public final class EndermanGriefControlMod implements ModInitializer {
         LOGGER.info("[Enderman] holding a block at (" + coords + ").");
 
         if (enderman.level() instanceof ServerLevel serverLevel) {
-            Component chatMessage = GriefControlMessages.heldBlockAlert(MessageTemplates.DEFAULTS, coords);
+            Component chatMessage = GriefControlMessages.heldBlockAlert(config.messages.toMessageTemplates(), coords);
             CHAT_BROADCASTER.broadcastToWorld(serverLevel, chatMessage);
         }
     }
@@ -133,7 +132,7 @@ public final class EndermanGriefControlMod implements ModInitializer {
         LOGGER.info("[Enderman] holding cleared at (" + coords + ").");
 
         if (enderman.level() instanceof ServerLevel serverLevel) {
-            Component chatMessage = GriefControlMessages.heldBlockCleared(MessageTemplates.DEFAULTS, coords);
+            Component chatMessage = GriefControlMessages.heldBlockCleared(config.messages.toMessageTemplates(), coords);
             CHAT_BROADCASTER.broadcastToWorld(serverLevel, chatMessage);
         }
     }

@@ -2,6 +2,7 @@ package endermangriefcontrol.fabric;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import endermangriefcontrol.messaging.config.MessageTemplatesData;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.IOException;
@@ -22,6 +23,10 @@ public final class EndermanGriefControlConfig {
     // handled: "auto-clear" (default, resolves it automatically), "alert" (periodically re-logs
     // its location for manual hunting instead), or "off". See HeldBlockHandling.
     public String heldBlockHandling = "auto-clear";
+
+    // Chat announcement wording/colors - see MessageTemplatesData. Defaults match the wording
+    // used before this became configurable.
+    public MessageTemplatesData messages = MessageTemplatesData.defaults();
 
     public static EndermanGriefControlConfig load() {
         if (Files.exists(CONFIG_PATH)) {

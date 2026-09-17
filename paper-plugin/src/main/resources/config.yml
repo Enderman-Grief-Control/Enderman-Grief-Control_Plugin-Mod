@@ -41,3 +41,25 @@ logging:
   # is a one-time confirmation the actual problem got fixed, not a repeating denial, so this
   # defaults to on even though denial logging defaults off.
   removals: true
+
+# Chat announcement wording/colors. Shared in shape with the Fabric mod's equivalent config, and
+# tolerant of missing/misspelled entries - anything absent or unrecognized falls back to its
+# default shown below rather than failing to load. Colors are Minecraft's standard 16 names
+# (e.g. dark_purple, gold, aqua) in lowercase.
+messages:
+  prefix: "[Enderman] "
+  denied:
+    prefix-color: light_purple
+    body: "Denied {action} at "
+    body-color: gray
+    coords-color: green
+  held-block-alert:
+    prefix-color: gold
+    body: "holding a block at "
+    body-color: gray
+    coords-color: green
+  held-block-cleared:
+    prefix-color: aqua
+    body: "holding cleared at "
+    body-color: gray
+    coords-color: green
