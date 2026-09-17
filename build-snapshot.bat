@@ -8,6 +8,17 @@ if exist "%~dp0.env" (
 )
 
 echo ============================================
+echo  Installing shared messaging module
+echo ============================================
+rem Installed at its own plain (non-SNAPSHOT) version - it doesn't participate in either
+rem platform's release/SNAPSHOT cadence, it's a separately-versioned shared library.
+pushd enderman-grief-control-messaging
+call mvn install
+if errorlevel 1 goto :fail
+popd
+
+echo.
+echo ============================================
 echo  Building SNAPSHOT: Paper plugin
 echo ============================================
 pushd paper-plugin

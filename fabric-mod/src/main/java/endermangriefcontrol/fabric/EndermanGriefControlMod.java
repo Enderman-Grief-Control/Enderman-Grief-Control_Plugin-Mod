@@ -2,15 +2,16 @@ package endermangriefcontrol.fabric;
 
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
-import net.minecraft.ChatFormatting;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
+import net.kyori.adventure.text.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.monster.EnderMan;
 import endermangriefcontrol.fabric.command.EndermanCommand;
 import endermangriefcontrol.fabric.debug.TestModeLogger;
 import endermangriefcontrol.fabric.heldblock.HeldBlockHandling;
 import endermangriefcontrol.fabric.heldblock.HeldBlockMonitor;
+import endermangriefcontrol.fabric.message.FabricChatBroadcaster;
+import endermangriefcontrol.messaging.GriefControlMessages;
+import endermangriefcontrol.messaging.MessageTemplates;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,6 +22,7 @@ public final class EndermanGriefControlMod implements ModInitializer {
 
     private static EndermanGriefControlConfig config;
     private static final HeldBlockMonitor HELD_BLOCK_MONITOR = new HeldBlockMonitor();
+    private static final FabricChatBroadcaster CHAT_BROADCASTER = new FabricChatBroadcaster();
 
     @Override
     public void onInitialize() {
@@ -29,6 +31,7 @@ public final class EndermanGriefControlMod implements ModInitializer {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
                 EndermanCommand.register(dispatcher));
         HELD_BLOCK_MONITOR.register();
+        CHAT_BROADCASTER.register();
         LOGGER.info("EndermanGriefControl has been initialized.");
     }
 
@@ -84,17 +87,13 @@ public final class EndermanGriefControlMod implements ModInitializer {
             return;
         }
 
-        String coords = "(" + enderman.getBlockX() + ", " + enderman.getBlockY() + ", " + enderman.getBlockZ() + ")";
+        String coords = enderman.getBlockX() + ", " + enderman.getBlockY() + ", " + enderman.getBlockZ();
 
-        LOGGER.info("[Enderman] Denied " + action + " at " + coords + ".");
+        LOGGER.info("[Enderman] Denied " + action + " at (" + coords + ").");
 
         if (enderman.level() instanceof ServerLevel serverLevel) {
-            MutableComponent chatMessage = Component.literal("[Enderman] ")
-                    .withStyle(ChatFormatting.LIGHT_PURPLE)
-                    .append(Component.literal("Denied " + action + " at ")
-                            .withStyle(ChatFormatting.GRAY))
-                    .append(Component.literal(coords + ".").withStyle(ChatFormatting.GREEN));
-            serverLevel.getServer().getPlayerList().broadcastSystemMessage(chatMessage, false);
+            Component chatMessage = GriefControlMessages.denied(MessageTemplates.DEFAULTS, action, coords);
+            CHAT_BROADCASTER.broadcastToWorld(serverLevel, chatMessage);
         }
     }
 
@@ -107,17 +106,13 @@ public final class EndermanGriefControlMod implements ModInitializer {
      * blending into routine denial spam.
      */
     public static void announceHeldBlockAlert(EnderMan enderman) {
-        String coords = "(" + enderman.getBlockX() + ", " + enderman.getBlockY() + ", " + enderman.getBlockZ() + ")";
+        String coords = enderman.getBlockX() + ", " + enderman.getBlockY() + ", " + enderman.getBlockZ();
 
-        LOGGER.info("[Enderman] holding a block at " + coords + ".");
+        LOGGER.info("[Enderman] holding a block at (" + coords + ").");
 
         if (enderman.level() instanceof ServerLevel serverLevel) {
-            MutableComponent chatMessage = Component.literal("[Enderman] ")
-                    .withStyle(ChatFormatting.GOLD)
-                    .append(Component.literal("holding a block at ")
-                            .withStyle(ChatFormatting.GRAY))
-                    .append(Component.literal(coords + ".").withStyle(ChatFormatting.GREEN));
-            serverLevel.getServer().getPlayerList().broadcastSystemMessage(chatMessage, false);
+            Component chatMessage = GriefControlMessages.heldBlockAlert(MessageTemplates.DEFAULTS, coords);
+            CHAT_BROADCASTER.broadcastToWorld(serverLevel, chatMessage);
         }
     }
 
@@ -133,17 +128,13 @@ public final class EndermanGriefControlMod implements ModInitializer {
             return;
         }
 
-        String coords = "(" + enderman.getBlockX() + ", " + enderman.getBlockY() + ", " + enderman.getBlockZ() + ")";
+        String coords = enderman.getBlockX() + ", " + enderman.getBlockY() + ", " + enderman.getBlockZ();
 
-        LOGGER.info("[Enderman] holding cleared at " + coords + ".");
+        LOGGER.info("[Enderman] holding cleared at (" + coords + ").");
 
         if (enderman.level() instanceof ServerLevel serverLevel) {
-            MutableComponent chatMessage = Component.literal("[Enderman] ")
-                    .withStyle(ChatFormatting.AQUA)
-                    .append(Component.literal("holding cleared at ")
-                            .withStyle(ChatFormatting.GRAY))
-                    .append(Component.literal(coords + ".").withStyle(ChatFormatting.GREEN));
-            serverLevel.getServer().getPlayerList().broadcastSystemMessage(chatMessage, false);
+            Component chatMessage = GriefControlMessages.heldBlockCleared(MessageTemplates.DEFAULTS, coords);
+            CHAT_BROADCASTER.broadcastToWorld(serverLevel, chatMessage);
         }
     }
 }

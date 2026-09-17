@@ -4,15 +4,15 @@ import endermangriefcontrol.debug.TestModeLogger;
 import endermangriefcontrol.heldblock.HeldBlockHandling;
 import endermangriefcontrol.heldblock.HeldBlockMonitor;
 import endermangriefcontrol.listener.EndermanBlockListener;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import endermangriefcontrol.message.PaperChatBroadcaster;
+import endermangriefcontrol.messaging.GriefControlMessages;
+import endermangriefcontrol.messaging.MessageTemplates;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Enderman;
-import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.Collections;
@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 public class EndermanGriefControlPlugin extends JavaPlugin {
 
     private HeldBlockMonitor heldBlockMonitor;
+    private final PaperChatBroadcaster chatBroadcaster = new PaperChatBroadcaster(this);
 
     @Override
     public void onEnable() {
@@ -175,9 +176,8 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
         String coords = block.getX() + ", " + block.getY() + ", " + block.getZ();
         getLogger().info("Denied " + action + " at (" + coords + ").");
 
-        broadcastToWorld(block.getWorld(), Component.text("[Enderman] ", NamedTextColor.LIGHT_PURPLE)
-                .append(Component.text("Denied " + action + " at ", NamedTextColor.GRAY))
-                .append(Component.text("(" + coords + ").", NamedTextColor.GREEN)));
+        chatBroadcaster.broadcastToWorld(block.getWorld(),
+                GriefControlMessages.denied(MessageTemplates.DEFAULTS, action, coords));
     }
 
     /**
@@ -192,9 +192,8 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
                 + ", " + enderman.getLocation().getBlockZ();
         getLogger().info("holding a block at (" + coords + ").");
 
-        broadcastToWorld(enderman.getWorld(), Component.text("[Enderman] ", NamedTextColor.GOLD)
-                .append(Component.text("holding a block at ", NamedTextColor.GRAY))
-                .append(Component.text("(" + coords + ").", NamedTextColor.GREEN)));
+        chatBroadcaster.broadcastToWorld(enderman.getWorld(),
+                GriefControlMessages.heldBlockAlert(MessageTemplates.DEFAULTS, coords));
     }
 
     /**
@@ -210,21 +209,8 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
                 + ", " + enderman.getLocation().getBlockZ();
         getLogger().info("cleared a holder at (" + coords + ").");
 
-        broadcastToWorld(enderman.getWorld(), Component.text("[Enderman] ", NamedTextColor.AQUA)
-                .append(Component.text("holding cleared at ", NamedTextColor.GRAY))
-                .append(Component.text("(" + coords + ").", NamedTextColor.GREEN)));
-    }
-
-    /**
-     * Sends a chat message to every player currently in the given world - grief events are
-     * inherently per-world here (unlike the Fabric mod, which has no multi-world concept and just
-     * broadcasts server-wide), so a denial/alert/clear in one world shouldn't spam players in
-     * another.
-     */
-    private void broadcastToWorld(World world, Component message) {
-        for (Player player : world.getPlayers()) {
-            player.sendMessage(message);
-        }
+        chatBroadcaster.broadcastToWorld(enderman.getWorld(),
+                GriefControlMessages.heldBlockCleared(MessageTemplates.DEFAULTS, coords));
     }
 
     private static final List<String> SUBCOMMANDS = List.of("reload", "status", "toggle", "held-block", "set");
