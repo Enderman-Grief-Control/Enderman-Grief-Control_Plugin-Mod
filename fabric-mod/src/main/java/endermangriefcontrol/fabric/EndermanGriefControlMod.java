@@ -125,11 +125,14 @@ public final class EndermanGriefControlMod implements ModInitializer {
     }
 
     /**
-     * Called by HeldBlockMonitor whenever a stuck holder under "auto-clear" handling is resolved.
-     * Gated by logRemovals - a separate toggle from loggingEnabled (which only covers denials),
-     * since a clear is a one-time confirmation the actual problem got fixed, not a repeating
-     * "still trying and being stopped" signal - most installs will want this on even with denial
-     * logging off, hence its own default-true toggle.
+     * Called by HeldBlockMonitor whenever a stuck holder under "auto-clear" handling is resolved -
+     * console/log-file only, every individual clear, regardless of how many endermen a single
+     * resolution pass resolves. Gated by logRemovals - a separate toggle from loggingEnabled
+     * (which only covers denials), since a clear is a one-time confirmation the actual problem got
+     * fixed, not a repeating "still trying and being stopped" signal - most installs will want this
+     * on even with denial logging off, hence its own default-true toggle. The chat announcement is
+     * handled separately, once per affected level per pass, by {@link
+     * #announceHeldBlockClearedBatch(ServerLevel, int)}.
      */
     public static void announceHeldBlockCleared(EnderMan enderman) {
         if (!config.logRemovals) {
@@ -139,10 +142,19 @@ public final class EndermanGriefControlMod implements ModInitializer {
         String coords = enderman.getBlockX() + ", " + enderman.getBlockY() + ", " + enderman.getBlockZ();
 
         LOGGER.info("[Enderman] holding cleared at (" + coords + ").");
+    }
 
-        if (enderman.level() instanceof ServerLevel serverLevel) {
-            Component chatMessage = GriefControlMessages.heldBlockCleared(config.messages.toMessageTemplates(), coords);
-            CHAT_BROADCASTER.broadcastToWorld(serverLevel, chatMessage);
+    /**
+     * Reports how many stuck holders were auto-cleared in {@code level} during a single resolution
+     * pass, as one chat message instead of one per enderman. Gated by logRemovals, same as the
+     * per-event console line in {@link #announceHeldBlockCleared(EnderMan)}.
+     */
+    public static void announceHeldBlockClearedBatch(ServerLevel level, int count) {
+        if (!config.logRemovals) {
+            return;
         }
+
+        Component chatMessage = GriefControlMessages.heldBlockCleared(config.messages.toMessageTemplates(), count);
+        CHAT_BROADCASTER.broadcastToWorld(level, chatMessage);
     }
 }

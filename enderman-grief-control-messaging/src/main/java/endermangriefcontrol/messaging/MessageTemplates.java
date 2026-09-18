@@ -15,6 +15,6 @@ public record MessageTemplates(String prefixText, MessageTemplate deniedPlacemen
             new MessageTemplate(NamedTextColor.DARK_PURPLE, "Denied placement", NamedTextColor.GRAY, NamedTextColor.DARK_GREEN),
             new MessageTemplate(NamedTextColor.LIGHT_PURPLE, "Denied pickup", NamedTextColor.GRAY, NamedTextColor.DARK_GREEN),
             new MessageTemplate(NamedTextColor.GOLD, "holding a block at ", NamedTextColor.GRAY, NamedTextColor.GREEN),
-            new MessageTemplate(NamedTextColor.AQUA, "holding cleared at ", NamedTextColor.GRAY, NamedTextColor.GREEN)
+            new MessageTemplate(NamedTextColor.AQUA, "holding block cleared", NamedTextColor.GRAY, NamedTextColor.DARK_GREEN)
     );
 }

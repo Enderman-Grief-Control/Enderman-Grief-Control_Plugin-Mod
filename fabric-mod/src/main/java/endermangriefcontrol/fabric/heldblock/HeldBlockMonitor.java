@@ -13,8 +13,10 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.EnderMan;
 import net.minecraft.world.level.entity.EntityTypeTest;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -156,6 +158,7 @@ public final class HeldBlockMonitor {
         int resolved = 0;
         int alerted = 0;
         int leftUntouched = 0;
+        Map<ServerLevel, Integer> clearedPerLevel = new HashMap<>();
 
         Iterator<UUID> iterator = knownHolders.iterator();
         while (iterator.hasNext()) {
@@ -179,11 +182,18 @@ public final class HeldBlockMonitor {
                 case AUTO_CLEAR -> {
                     enderman.setCarriedBlock(null);
                     EndermanGriefControlMod.announceHeldBlockCleared(enderman);
+                    if (enderman.level() instanceof ServerLevel serverLevel) {
+                        clearedPerLevel.merge(serverLevel, 1, Integer::sum);
+                    }
                     iterator.remove();
                     resolved++;
                 }
                 case OFF -> leftUntouched++; // Leave it tracked and untouched; picked up again if the mode later changes.
             }
+        }
+
+        for (Map.Entry<ServerLevel, Integer> entry : clearedPerLevel.entrySet()) {
+            EndermanGriefControlMod.announceHeldBlockClearedBatch(entry.getKey(), entry.getValue());
         }
 
         TestModeLogger.log("Resolution pass ran: " + resolved + " resolved, " + alerted + " alerted, "

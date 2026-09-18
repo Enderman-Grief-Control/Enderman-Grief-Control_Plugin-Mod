@@ -70,9 +70,9 @@ class PaperMessageTemplateLoaderTest {
                     coords-color: green
                   held-block-cleared:
                     prefix-color: aqua
-                    body: "holding cleared at "
+                    body: "holding block cleared"
                     body-color: gray
-                    coords-color: green
+                    coords-color: dark_green
                 """;
         YamlConfiguration config = YamlConfiguration.loadConfiguration(new java.io.StringReader(yaml));
 

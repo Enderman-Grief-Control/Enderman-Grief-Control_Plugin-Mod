@@ -27,9 +27,9 @@ class GriefControlMessagesTest {
     }
 
     @Test
-    void heldBlockClearedMatchesLegacyWording() {
-        Component message = GriefControlMessages.heldBlockCleared(MessageTemplates.DEFAULTS, "1, 2, 3");
-        assertEquals("[Enderman] holding cleared at (1, 2, 3).", plainText(message));
+    void heldBlockClearedUsesCountInsteadOfCoords() {
+        Component message = GriefControlMessages.heldBlockCleared(MessageTemplates.DEFAULTS, 3);
+        assertEquals("[Enderman] holding block cleared x3.", plainText(message));
     }
 
     @Test

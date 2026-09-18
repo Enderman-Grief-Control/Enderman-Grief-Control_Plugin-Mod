@@ -216,8 +216,11 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
     }
 
     /**
-     * Logs that a stuck holder was auto-cleared. Gated by {@link #isRemovalsLoggingEnabled()} -
-     * separate from denial logging, and on by default.
+     * Logs that a stuck holder was auto-cleared - console/log-file only, every individual clear,
+     * regardless of how many endermen a single resolution pass resolves. Gated by
+     * {@link #isRemovalsLoggingEnabled()} - separate from denial logging, and on by default. The
+     * chat announcement is handled separately, once per affected world per pass, by
+     * {@link #announceHeldBlockClearedBatch(World, int)}.
      */
     public void logHeldBlockCleared(Enderman enderman) {
         if (!isRemovalsLoggingEnabled()) {
@@ -227,9 +230,20 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
         String coords = enderman.getLocation().getBlockX() + ", " + enderman.getLocation().getBlockY()
                 + ", " + enderman.getLocation().getBlockZ();
         getLogger().info("cleared a holder at (" + coords + ").");
+    }
 
-        chatBroadcaster.broadcastToWorld(enderman.getWorld(),
-                GriefControlMessages.heldBlockCleared(messageTemplates, coords));
+    /**
+     * Reports how many stuck holders were auto-cleared in {@code world} during a single resolution
+     * pass, as one chat message instead of one per enderman. Gated by
+     * {@link #isRemovalsLoggingEnabled()}, same as the per-event console line in
+     * {@link #logHeldBlockCleared(Enderman)}.
+     */
+    public void announceHeldBlockClearedBatch(World world, int count) {
+        if (!isRemovalsLoggingEnabled()) {
+            return;
+        }
+
+        chatBroadcaster.broadcastToWorld(world, GriefControlMessages.heldBlockCleared(messageTemplates, count));
     }
 
     private static final List<String> SUBCOMMANDS = List.of("reload", "status", "toggle", "held-block", "set");

@@ -22,8 +22,8 @@ public final class GriefControlMessages {
         return buildCoords(templates, templates.heldBlockAlert(), coords);
     }
 
-    public static Component heldBlockCleared(MessageTemplates templates, String coords) {
-        return buildCoords(templates, templates.heldBlockCleared(), coords);
+    public static Component heldBlockCleared(MessageTemplates templates, int count) {
+        return buildCount(templates, templates.heldBlockCleared(), count);
     }
 
     private static Component buildCoords(MessageTemplates templates, MessageTemplate template, String coords) {
