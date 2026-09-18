@@ -109,9 +109,9 @@ public final class EndermanGriefControlMod implements ModInitializer {
      * Called periodically by HeldBlockMonitor for a stuck holder under "alert" handling. Not gated
      * by loggingEnabled - choosing "alert" as the held-block handling mode is itself the opt-in;
      * requiring the separate, unrelated loggingEnabled toggle too would mean a player who sets
-     * "alert" but forgets to also flip loggingEnabled gets silent, useless alerts. Colored gold,
-     * distinct from announceBlocked's light-purple, so it stands out as "go hunt this" rather than
-     * blending into routine denial spam.
+     * "alert" but forgets to also flip loggingEnabled gets silent, useless alerts. Colored red,
+     * distinct from every other announcement's purple/green/cyan families, so it stands out as
+     * "go hunt this" rather than blending into routine denial spam.
      */
     public static void announceHeldBlockAlert(EnderMan enderman) {
         String coords = enderman.getBlockX() + ", " + enderman.getBlockY() + ", " + enderman.getBlockZ();

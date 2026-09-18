@@ -64,7 +64,7 @@ class PaperMessageTemplateLoaderTest {
                     body-color: gray
                     coords-color: dark_green
                   held-block-alert:
-                    prefix-color: gold
+                    prefix-color: red
                     body: "holding a block at "
                     body-color: gray
                     coords-color: green
