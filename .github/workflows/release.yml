@@ -183,7 +183,20 @@ jobs:
       VERSION: ${{ needs.prepare.outputs.version }}
       PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
       # Hardcoded until the MC-version matrix stage moves this into per-platform config.
-      GAME_VERSIONS: "1.21"
+      # Modrinth's "1.21.x" grouping is just this range listed out.
+      GAME_VERSIONS: |
+        1.21
+        1.21.1
+        1.21.2
+        1.21.3
+        1.21.4
+        1.21.5
+        1.21.6
+        1.21.7
+        1.21.8
+        1.21.9
+        1.21.10
+        1.21.11
 
     steps:
       - uses: actions/download-artifact@v4
@@ -204,10 +217,12 @@ jobs:
       - name: Pick display values
         id: meta
         run: |
+          # Matches the existing listing's naming (Paper-1.1.0 / Fabric-1.1.0). Used as both the
+          # display name and the version number, which also keeps the two platforms' numbers unique.
           if [[ "$PLATFORM" == "paper" ]]; then
-            echo "name=Paper plugin v$VERSION" >> "$GITHUB_OUTPUT"
+            echo "name=Paper-$VERSION" >> "$GITHUB_OUTPUT"
           else
-            echo "name=Fabric mod v$VERSION" >> "$GITHUB_OUTPUT"
+            echo "name=Fabric-$VERSION" >> "$GITHUB_OUTPUT"
           fi
           if [[ "$PRERELEASE" == "true" ]]; then
             echo "type=beta" >> "$GITHUB_OUTPUT"
@@ -221,7 +236,7 @@ jobs:
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
           modrinth-files: release-jars/*.jar
           modrinth-name: ${{ steps.meta.outputs.name }}
-          modrinth-version: ${{ needs.prepare.outputs.version }}
+          modrinth-version: ${{ steps.meta.outputs.name }}
           modrinth-version-type: ${{ steps.meta.outputs.type }}
           modrinth-loaders: ${{ needs.prepare.outputs.platform }}
           modrinth-game-versions: ${{ env.GAME_VERSIONS }}
