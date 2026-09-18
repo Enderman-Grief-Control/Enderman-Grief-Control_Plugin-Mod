@@ -121,9 +121,21 @@ jobs:
           path: release-jars/*.jar
           if-no-files-found: error
 
+  # Manual gate: the build above runs unattended, but nothing public happens until the reviewer
+  # configured on the "release" environment (repo Settings -> Environments) approves. One gate
+  # covers every publish job below, so a release needs a single approval.
+  approve:
+    name: Approve publish
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    environment: release
+
+    steps:
+      - run: echo "Publishing ${{ needs.prepare.outputs.platform }} ${{ needs.prepare.outputs.version }}"
+
   github-release:
     name: GitHub Release
-    needs: [prepare, build]
+    needs: [prepare, approve]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -156,3 +168,61 @@ jobs:
             --title "$title" \
             --generate-notes \
             "${flags[@]}"
+
+  # One Modrinth project hosts both platforms, so both tag types publish to the same project id.
+  # The GitHub Release goes first and is the source of the changelog, so Modrinth and GitHub
+  # always show the same notes.
+  modrinth:
+    name: Modrinth
+    needs: [prepare, github-release]
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+      PLATFORM: ${{ needs.prepare.outputs.platform }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+      PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+      # Hardcoded until the MC-version matrix stage moves this into per-platform config.
+      GAME_VERSIONS: "1.21"
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-jars
+          path: release-jars
+
+      - name: Read release notes from GitHub Release
+        id: notes
+        run: |
+          delimiter="EOF_$(openssl rand -hex 8)"
+          {
+            echo "body<<$delimiter"
+            gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body --jq .body
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Pick display values
+        id: meta
+        run: |
+          if [[ "$PLATFORM" == "paper" ]]; then
+            echo "name=Paper plugin v$VERSION" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=Fabric mod v$VERSION" >> "$GITHUB_OUTPUT"
+          fi
+          if [[ "$PRERELEASE" == "true" ]]; then
+            echo "type=beta" >> "$GITHUB_OUTPUT"
+          else
+            echo "type=release" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: Kira-NT/mc-publish@v3
+        with:
+          modrinth-id: ${{ vars.MODRINTH_PROJECT_ID }}
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          modrinth-files: release-jars/*.jar
+          modrinth-name: ${{ steps.meta.outputs.name }}
+          modrinth-version: ${{ needs.prepare.outputs.version }}
+          modrinth-version-type: ${{ steps.meta.outputs.type }}
+          modrinth-loaders: ${{ needs.prepare.outputs.platform }}
+          modrinth-game-versions: ${{ env.GAME_VERSIONS }}
+          modrinth-changelog: ${{ steps.notes.outputs.body }}
