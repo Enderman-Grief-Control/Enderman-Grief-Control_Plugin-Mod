@@ -1,6 +1,7 @@
 package endermangriefcontrol.listener;
 
 import endermangriefcontrol.EndermanGriefControlPlugin;
+import endermangriefcontrol.messaging.DenialType;
 import endermangriefcontrol.messaging.GriefControlMessages;
 import endermangriefcontrol.messaging.MessageTemplates;
 import org.bukkit.Material;
@@ -119,7 +120,7 @@ class EndermanBlockListenerTest {
 
         firePickupEvent(EntityType.ENDERMAN);
 
-        player.assertSaid(GriefControlMessages.denied(MessageTemplates.DEFAULTS, "pickup", "10, 64, -30"));
+        player.assertSaid(GriefControlMessages.denied(MessageTemplates.DEFAULTS, DenialType.PICKUP, 1));
     }
 
     @Test
@@ -130,7 +131,7 @@ class EndermanBlockListenerTest {
 
         fireBlockChangeEvent(EntityType.ENDERMAN, Material.DIRT);
 
-        player.assertSaid(GriefControlMessages.denied(MessageTemplates.DEFAULTS, "placement", "10, 64, -30"));
+        player.assertSaid(GriefControlMessages.denied(MessageTemplates.DEFAULTS, DenialType.PLACEMENT, 1));
     }
 
     private List<LogRecord> captureLogRecords() {

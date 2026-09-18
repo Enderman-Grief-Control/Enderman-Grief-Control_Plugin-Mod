@@ -6,6 +6,8 @@ import endermangriefcontrol.heldblock.HeldBlockMonitor;
 import endermangriefcontrol.listener.EndermanBlockListener;
 import endermangriefcontrol.message.PaperChatBroadcaster;
 import endermangriefcontrol.message.PaperMessageTemplateLoader;
+import endermangriefcontrol.messaging.DenialRateLimiter;
+import endermangriefcontrol.messaging.DenialType;
 import endermangriefcontrol.messaging.GriefControlMessages;
 import endermangriefcontrol.messaging.MessageTemplates;
 import net.kyori.adventure.text.Component;
@@ -34,6 +36,7 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
     private HeldBlockMonitor heldBlockMonitor;
     private final PaperChatBroadcaster chatBroadcaster = new PaperChatBroadcaster(this);
     private MessageTemplates messageTemplates = MessageTemplates.DEFAULTS;
+    private DenialRateLimiter denialRateLimiter;
 
     @Override
     public void onEnable() {
@@ -41,6 +44,7 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
         // (plugins/EndermanGriefControl/config.yml) if it does not exist.
         saveDefaultConfig();
         messageTemplates = PaperMessageTemplateLoader.load(getConfig());
+        denialRateLimiter = new DenialRateLimiter(getDenialRateLimitMillis());
         TestModeLogger.init(this);
 
         getLogger().info("EndermanGriefControl is enabling...");
@@ -96,6 +100,14 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
      */
     public boolean isRemovalsLoggingEnabled() {
         return getConfig().getBoolean("logging.removals", true);
+    }
+
+    /**
+     * Minimum time between denial chat announcements, per {@link DenialType}. Does not affect the
+     * console/log-file line, which always logs every individual denial.
+     */
+    private long getDenialRateLimitMillis() {
+        return getConfig().getLong("logging.denial-rate-limit-seconds", 10) * 1000L;
     }
 
     /**
@@ -173,15 +185,18 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
     /**
      * Logs that an enderman's block pickup or placement was denied - to the console (Bukkit's
      * logger already prefixes output with "[EndermanGriefControl]" and its own timestamp, so the
-     * message itself stays short) and, matching the Fabric mod's chat announcements, to every
-     * player currently in that world.
+     * message itself stays short), every single time. The chat announcement, matching the Fabric
+     * mod's, is rate-limited per {@link DenialType} instead - only fires when
+     * {@link #denialRateLimiter} says this denial's type is due, reporting how many of that type
+     * happened since the last chat message rather than one line per denial.
      */
-    public void logEndermanBlockCancel(Block block, String action) {
+    public void logEndermanBlockCancel(Block block, DenialType type) {
         String coords = block.getX() + ", " + block.getY() + ", " + block.getZ();
-        getLogger().info("Denied " + action + " at (" + coords + ").");
+        getLogger().info("Denied " + type.actionText() + " at (" + coords + ").");
 
-        chatBroadcaster.broadcastToWorld(block.getWorld(),
-                GriefControlMessages.denied(messageTemplates, action, coords));
+        denialRateLimiter.recordDenial(type).ifPresent(count ->
+                chatBroadcaster.broadcastToWorld(block.getWorld(),
+                        GriefControlMessages.denied(messageTemplates, type, count)));
     }
 
     /**
@@ -257,6 +272,7 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
     private void handleReload(CommandSender sender) {
         reloadConfig();
         messageTemplates = PaperMessageTemplateLoader.load(getConfig());
+        denialRateLimiter = new DenialRateLimiter(getDenialRateLimitMillis());
         heldBlockMonitor.armPendingDiscovery(); // Config may have re-enabled worlds by hand-edit.
         sender.sendMessage(Component.text("EndermanGriefControl configuration reloaded."));
         getLogger().info("Configuration reloaded by " + sender.getName());

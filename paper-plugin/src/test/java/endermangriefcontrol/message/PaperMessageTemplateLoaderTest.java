@@ -20,19 +20,20 @@ class PaperMessageTemplateLoaderTest {
     void customConfig_overridesWordingAndColors() {
         YamlConfiguration config = new YamlConfiguration();
         config.set("messages.prefix", "[Custom] ");
-        config.set("messages.denied.prefix-color", "red");
-        config.set("messages.denied.body", "Blocked {action} near ");
-        config.set("messages.denied.body-color", "white");
-        config.set("messages.denied.coords-color", "blue");
+        config.set("messages.denied-placement.prefix-color", "red");
+        config.set("messages.denied-placement.body", "Blocked placement near");
+        config.set("messages.denied-placement.body-color", "white");
+        config.set("messages.denied-placement.coords-color", "blue");
 
         MessageTemplates templates = PaperMessageTemplateLoader.load(config);
 
         assertEquals("[Custom] ", templates.prefixText());
-        assertEquals(NamedTextColor.RED, templates.denied().prefixColor());
-        assertEquals("Blocked {action} near ", templates.denied().body());
-        assertEquals(NamedTextColor.WHITE, templates.denied().bodyColor());
-        assertEquals(NamedTextColor.BLUE, templates.denied().coordsColor());
+        assertEquals(NamedTextColor.RED, templates.deniedPlacement().prefixColor());
+        assertEquals("Blocked placement near", templates.deniedPlacement().body());
+        assertEquals(NamedTextColor.WHITE, templates.deniedPlacement().bodyColor());
+        assertEquals(NamedTextColor.BLUE, templates.deniedPlacement().coordsColor());
         // Untouched templates keep their defaults.
+        assertEquals(MessageTemplates.DEFAULTS.deniedPickup(), templates.deniedPickup());
         assertEquals(MessageTemplates.DEFAULTS.heldBlockAlert(), templates.heldBlockAlert());
         assertEquals(MessageTemplates.DEFAULTS.heldBlockCleared(), templates.heldBlockCleared());
     }
@@ -40,11 +41,11 @@ class PaperMessageTemplateLoaderTest {
     @Test
     void unrecognizedColor_fallsBackToDefaultInsteadOfFailing() {
         YamlConfiguration config = new YamlConfiguration();
-        config.set("messages.denied.prefix-color", "not-a-real-color");
+        config.set("messages.denied-placement.prefix-color", "not-a-real-color");
 
         MessageTemplates templates = PaperMessageTemplateLoader.load(config);
 
-        assertEquals(MessageTemplates.DEFAULTS.denied().prefixColor(), templates.denied().prefixColor());
+        assertEquals(MessageTemplates.DEFAULTS.deniedPlacement().prefixColor(), templates.deniedPlacement().prefixColor());
     }
 
     @Test
@@ -52,11 +53,16 @@ class PaperMessageTemplateLoaderTest {
         String yaml = """
                 messages:
                   prefix: "[Enderman] "
-                  denied:
-                    prefix-color: light_purple
-                    body: "Denied {action} at "
+                  denied-placement:
+                    prefix-color: dark_purple
+                    body: "Denied placement"
                     body-color: gray
-                    coords-color: green
+                    coords-color: dark_green
+                  denied-pickup:
+                    prefix-color: light_purple
+                    body: "Denied pickup"
+                    body-color: gray
+                    coords-color: dark_green
                   held-block-alert:
                     prefix-color: gold
                     body: "holding a block at "

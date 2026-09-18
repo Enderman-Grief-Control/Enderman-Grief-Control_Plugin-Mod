@@ -19,6 +19,12 @@ public final class EndermanGriefControlConfig {
     public boolean loggingEnabled = false;
     public boolean logRemovals = true;
 
+    // Minimum seconds between denial chat announcements, per denial type (placement and pickup
+    // throttled independently). Denials faster than this are counted and rolled into the next
+    // chat message rather than dropped. Doesn't affect the console/log-file line, which always
+    // logs every individual denial. 0 announces every single denial in chat (the old behavior).
+    public int denialRateLimitSeconds = 10;
+
     // How a stuck holder (an enderman already carrying a block placement can no longer clear) is
     // handled: "auto-clear" (default, resolves it automatically), "alert" (periodically re-logs
     // its location for manual hunting instead), or "off". See HeldBlockHandling.

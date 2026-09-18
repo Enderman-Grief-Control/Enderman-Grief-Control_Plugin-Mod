@@ -17,8 +17,11 @@ public final class MessageTemplatesData {
 
     public String prefix = MessageTemplates.DEFAULTS.prefixText();
 
-    @SerializedName("denied")
-    public MessageTemplateData denied = MessageTemplateData.from(MessageTemplates.DEFAULTS.denied());
+    @SerializedName("denied-placement")
+    public MessageTemplateData deniedPlacement = MessageTemplateData.from(MessageTemplates.DEFAULTS.deniedPlacement());
+
+    @SerializedName("denied-pickup")
+    public MessageTemplateData deniedPickup = MessageTemplateData.from(MessageTemplates.DEFAULTS.deniedPickup());
 
     @SerializedName("held-block-alert")
     public MessageTemplateData heldBlockAlert = MessageTemplateData.from(MessageTemplates.DEFAULTS.heldBlockAlert());
@@ -34,7 +37,8 @@ public final class MessageTemplatesData {
         String resolvedPrefix = prefix != null ? prefix : MessageTemplates.DEFAULTS.prefixText();
         return new MessageTemplates(
                 resolvedPrefix,
-                toTemplateOrDefault(denied, MessageTemplates.DEFAULTS.denied()),
+                toTemplateOrDefault(deniedPlacement, MessageTemplates.DEFAULTS.deniedPlacement()),
+                toTemplateOrDefault(deniedPickup, MessageTemplates.DEFAULTS.deniedPickup()),
                 toTemplateOrDefault(heldBlockAlert, MessageTemplates.DEFAULTS.heldBlockAlert()),
                 toTemplateOrDefault(heldBlockCleared, MessageTemplates.DEFAULTS.heldBlockCleared())
         );

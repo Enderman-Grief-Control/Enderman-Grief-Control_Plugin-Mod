@@ -25,7 +25,8 @@ public final class PaperMessageTemplateLoader {
 
         return new MessageTemplates(
                 section.getString("prefix", MessageTemplates.DEFAULTS.prefixText()),
-                loadTemplate(section.getConfigurationSection("denied"), MessageTemplates.DEFAULTS.denied()),
+                loadTemplate(section.getConfigurationSection("denied-placement"), MessageTemplates.DEFAULTS.deniedPlacement()),
+                loadTemplate(section.getConfigurationSection("denied-pickup"), MessageTemplates.DEFAULTS.deniedPickup()),
                 loadTemplate(section.getConfigurationSection("held-block-alert"), MessageTemplates.DEFAULTS.heldBlockAlert()),
                 loadTemplate(section.getConfigurationSection("held-block-cleared"), MessageTemplates.DEFAULTS.heldBlockCleared())
         );

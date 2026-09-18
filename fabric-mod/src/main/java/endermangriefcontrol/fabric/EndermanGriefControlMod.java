@@ -10,6 +10,8 @@ import endermangriefcontrol.fabric.debug.TestModeLogger;
 import endermangriefcontrol.fabric.heldblock.HeldBlockHandling;
 import endermangriefcontrol.fabric.heldblock.HeldBlockMonitor;
 import endermangriefcontrol.fabric.message.FabricChatBroadcaster;
+import endermangriefcontrol.messaging.DenialRateLimiter;
+import endermangriefcontrol.messaging.DenialType;
 import endermangriefcontrol.messaging.GriefControlMessages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,12 +22,14 @@ public final class EndermanGriefControlMod implements ModInitializer {
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     private static EndermanGriefControlConfig config;
+    private static DenialRateLimiter denialRateLimiter;
     private static final HeldBlockMonitor HELD_BLOCK_MONITOR = new HeldBlockMonitor();
     private static final FabricChatBroadcaster CHAT_BROADCASTER = new FabricChatBroadcaster();
 
     @Override
     public void onInitialize() {
         config = EndermanGriefControlConfig.load();
+        denialRateLimiter = new DenialRateLimiter(config.denialRateLimitSeconds * 1000L);
         TestModeLogger.init();
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
                 EndermanCommand.register(dispatcher));
@@ -40,6 +44,7 @@ public final class EndermanGriefControlMod implements ModInitializer {
 
     public static void setConfig(EndermanGriefControlConfig newConfig) {
         config = newConfig;
+        denialRateLimiter = new DenialRateLimiter(newConfig.denialRateLimitSeconds * 1000L);
     }
 
     /**
@@ -77,23 +82,27 @@ public final class EndermanGriefControlMod implements ModInitializer {
     }
 
     /**
-     * Called by the pickup/placement mixins whenever a block change was prevented. Logs the same
-     * short message to the console/log file that's shown in chat (matching the Paper plugin's log
-     * wording), so players — not just admins reading logs — can see it happened.
+     * Called by the pickup/placement mixins whenever a block change was prevented. Always logs the
+     * same short console/log-file message (matching the Paper plugin's wording), so admins see
+     * every denial. The chat announcement is rate-limited per {@link DenialType} instead - only
+     * fires when {@link #denialRateLimiter} says this denial's type is due, reporting how many of
+     * that type happened since the last chat message rather than one line per denial.
      */
-    public static void announceBlocked(EnderMan enderman, String action) {
+    public static void announceBlocked(EnderMan enderman, DenialType type) {
         if (!config.loggingEnabled) {
             return;
         }
 
         String coords = enderman.getBlockX() + ", " + enderman.getBlockY() + ", " + enderman.getBlockZ();
 
-        LOGGER.info("[Enderman] Denied " + action + " at (" + coords + ").");
+        LOGGER.info("[Enderman] Denied " + type.actionText() + " at (" + coords + ").");
 
-        if (enderman.level() instanceof ServerLevel serverLevel) {
-            Component chatMessage = GriefControlMessages.denied(config.messages.toMessageTemplates(), action, coords);
-            CHAT_BROADCASTER.broadcastToWorld(serverLevel, chatMessage);
-        }
+        denialRateLimiter.recordDenial(type).ifPresent(count -> {
+            if (enderman.level() instanceof ServerLevel serverLevel) {
+                Component chatMessage = GriefControlMessages.denied(config.messages.toMessageTemplates(), type, count);
+                CHAT_BROADCASTER.broadcastToWorld(serverLevel, chatMessage);
+            }
+        });
     }
 
     /**

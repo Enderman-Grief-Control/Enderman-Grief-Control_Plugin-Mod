@@ -22,8 +22,8 @@ class MessageTemplatesDataTest {
     void gsonRoundTripPreservesCustomWording() {
         MessageTemplatesData data = MessageTemplatesData.defaults();
         data.prefix = "[Custom] ";
-        data.denied.body = "Blocked {action} near ";
-        data.denied.prefixColor = "red";
+        data.deniedPlacement.body = "Blocked placement near";
+        data.deniedPlacement.prefixColor = "red";
 
         String json = GSON.toJson(data);
         MessageTemplatesData roundTripped = GSON.fromJson(json, MessageTemplatesData.class);
@@ -31,17 +31,17 @@ class MessageTemplatesDataTest {
         assertNotNull(roundTripped);
         MessageTemplates templates = roundTripped.toMessageTemplates();
         assertEquals("[Custom] ", templates.prefixText());
-        assertEquals("Blocked {action} near ", templates.denied().body());
-        assertEquals(NamedTextColor.RED, templates.denied().prefixColor());
+        assertEquals("Blocked placement near", templates.deniedPlacement().body());
+        assertEquals(NamedTextColor.RED, templates.deniedPlacement().prefixColor());
     }
 
     @Test
     void unrecognizedColorFallsBackToDefaultInsteadOfFailing() {
         MessageTemplatesData data = MessageTemplatesData.defaults();
-        data.denied.prefixColor = "not-a-real-color";
+        data.deniedPlacement.prefixColor = "not-a-real-color";
 
         MessageTemplates templates = data.toMessageTemplates();
-        assertEquals(MessageTemplates.DEFAULTS.denied().prefixColor(), templates.denied().prefixColor());
+        assertEquals(MessageTemplates.DEFAULTS.deniedPlacement().prefixColor(), templates.deniedPlacement().prefixColor());
     }
 
     @Test
