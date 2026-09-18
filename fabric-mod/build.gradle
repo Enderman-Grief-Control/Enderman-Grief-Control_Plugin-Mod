@@ -66,8 +66,8 @@ dependencies {
 	modImplementation "net.kyori:adventure-platform-fabric:${project.adventure_platform_fabric_version}"
 	include "net.kyori:adventure-platform-fabric:${project.adventure_platform_fabric_version}"
 
-	modImplementation "endermangriefcontrol:enderman-grief-control-messaging:${project.mod_version}"
-	include "endermangriefcontrol:enderman-grief-control-messaging:${project.mod_version}"
+	modImplementation "endermangriefcontrol:enderman-grief-control-messaging:${project.messaging_version}"
+	include "endermangriefcontrol:enderman-grief-control-messaging:${project.messaging_version}"
 }
 
 processResources {
