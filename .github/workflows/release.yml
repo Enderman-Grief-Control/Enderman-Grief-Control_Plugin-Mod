@@ -11,6 +11,21 @@ on:
 # Release builds must never bake in test mode (see TestModeLogger), whatever the runner has set.
 env:
   ENDERMAN_GRIEF_TEST_MODE: "false"
+  # Hardcoded until the MC-version matrix stage moves this into per-platform config.
+  # Modrinth's "1.21.x" grouping is just this range listed out.
+  GAME_VERSIONS: |
+    1.21
+    1.21.1
+    1.21.2
+    1.21.3
+    1.21.4
+    1.21.5
+    1.21.6
+    1.21.7
+    1.21.8
+    1.21.9
+    1.21.10
+    1.21.11
 
 jobs:
   prepare:
@@ -182,21 +197,6 @@ jobs:
       PLATFORM: ${{ needs.prepare.outputs.platform }}
       VERSION: ${{ needs.prepare.outputs.version }}
       PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
-      # Hardcoded until the MC-version matrix stage moves this into per-platform config.
-      # Modrinth's "1.21.x" grouping is just this range listed out.
-      GAME_VERSIONS: |
-        1.21
-        1.21.1
-        1.21.2
-        1.21.3
-        1.21.4
-        1.21.5
-        1.21.6
-        1.21.7
-        1.21.8
-        1.21.9
-        1.21.10
-        1.21.11
 
     steps:
       - uses: actions/download-artifact@v4
@@ -241,3 +241,117 @@ jobs:
           modrinth-loaders: ${{ needs.prepare.outputs.platform }}
           modrinth-game-versions: ${{ env.GAME_VERSIONS }}
           modrinth-changelog: ${{ steps.notes.outputs.body }}
+
+  # Fabric only: mc-publish doesn't support a Paper/Bukkit loader on CurseForge, so the Paper
+  # CurseForge project needs a different mechanism (not wired up yet). Fabric and Paper are
+  # separate CurseForge projects, hence the per-platform project id variable.
+  curseforge-fabric:
+    name: CurseForge (Fabric)
+    if: needs.prepare.outputs.platform == 'fabric'
+    needs: [prepare, github-release]
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+      PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-jars
+          path: release-jars
+
+      - name: Read release notes from GitHub Release
+        id: notes
+        run: |
+          delimiter="EOF_$(openssl rand -hex 8)"
+          {
+            echo "body<<$delimiter"
+            gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body --jq .body
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Pick release type
+        id: meta
+        run: |
+          if [[ "$PRERELEASE" == "true" ]]; then
+            echo "type=beta" >> "$GITHUB_OUTPUT"
+          else
+            echo "type=release" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: Kira-NT/mc-publish@v3
+        with:
+          curseforge-id: ${{ vars.CURSEFORGE_FABRIC_PROJECT_ID }}
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          curseforge-files: release-jars/*.jar
+          curseforge-name: Fabric-${{ needs.prepare.outputs.version }}
+          curseforge-version: Fabric-${{ needs.prepare.outputs.version }}
+          curseforge-version-type: ${{ steps.meta.outputs.type }}
+          curseforge-loaders: fabric
+          curseforge-game-versions: ${{ env.GAME_VERSIONS }}
+          curseforge-java: "21"
+          curseforge-changelog: ${{ steps.notes.outputs.body }}
+
+  # Paper only: the Paper plugin lives on CurseForge's Bukkit Plugins section, which mc-publish
+  # can't target, so this calls the CurseForge upload API directly (a flow worth knowing
+  # anyway): look up game version ids -> upload the jar with a metadata JSON.
+  curseforge-paper:
+    name: CurseForge (Paper)
+    if: needs.prepare.outputs.platform == 'paper'
+    needs: [prepare, github-release]
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+      PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+      CF_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
+      CF_PROJECT_ID: ${{ vars.CURSEFORGE_PAPER_PROJECT_ID }}
+      # Bukkit Plugins projects use their own host; Minecraft mods use minecraft.curseforge.com.
+      CF_API: https://dev.bukkit.org
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-jars
+          path: release-jars
+
+      - name: Upload to CurseForge
+        run: |
+          set -euo pipefail
+
+          # Game versions are referenced by numeric id, so map our names to ids first.
+          curl -sS --fail-with-body -H "X-Api-Token: $CF_TOKEN" "$CF_API/api/game/versions" > versions.json
+
+          ids=()
+          while read -r name; do
+            [[ -z "$name" ]] && continue
+            match=$(jq -c --arg n "$name" '[.[] | select(.name == $n)]' versions.json)
+            count=$(jq 'length' <<<"$match")
+            if [[ "$count" != "1" ]]; then
+              echo "Game version '$name' matched $count CurseForge entries (expected exactly 1): $match"
+              exit 1
+            fi
+            id=$(jq '.[0].id' <<<"$match")
+            echo "Game version $name -> id $id"
+            ids+=("$id")
+          done <<<"$GAME_VERSIONS"
+
+          if [[ "$PRERELEASE" == "true" ]]; then release_type=beta; else release_type=release; fi
+          notes=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body --jq .body)
+
+          metadata=$(jq -n \
+            --arg changelog "$notes" \
+            --arg name "Paper-$VERSION" \
+            --arg releaseType "$release_type" \
+            --argjson gameVersions "$(printf '%s\n' "${ids[@]}" | jq -s .)" \
+            '{changelog: $changelog, changelogType: "markdown", displayName: $name, gameVersions: $gameVersions, releaseType: $releaseType}')
+
+          jar=$(ls release-jars/*.jar)
+          curl -sS --fail-with-body \
+            -H "X-Api-Token: $CF_TOKEN" \
+            -F "metadata=$metadata" \
+            -F "file=@$jar" \
+            "$CF_API/api/projects/$CF_PROJECT_ID/upload-file"
