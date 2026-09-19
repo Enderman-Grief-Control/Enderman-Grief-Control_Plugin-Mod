@@ -13,7 +13,7 @@ class DenialRateLimiterTest {
     void firstDenialFlushesImmediately() {
         DenialRateLimiter limiter = new DenialRateLimiter(5000);
 
-        Optional<Integer> result = limiter.recordDenial(DenialType.PLACEMENT, 0);
+        Optional<Integer> result = limiter.recordDenial("world", DenialType.PLACEMENT, 0);
 
         assertEquals(Optional.of(1), result);
     }
@@ -21,9 +21,9 @@ class DenialRateLimiterTest {
     @Test
     void denialsWithinCooldownAreSilentlyTallied() {
         DenialRateLimiter limiter = new DenialRateLimiter(5000);
-        limiter.recordDenial(DenialType.PLACEMENT, 0);
+        limiter.recordDenial("world", DenialType.PLACEMENT, 0);
 
-        Optional<Integer> result = limiter.recordDenial(DenialType.PLACEMENT, 1000);
+        Optional<Integer> result = limiter.recordDenial("world", DenialType.PLACEMENT, 1000);
 
         assertTrue(result.isEmpty());
     }
@@ -31,11 +31,11 @@ class DenialRateLimiterTest {
     @Test
     void denialAfterCooldownFlushesAccumulatedCount() {
         DenialRateLimiter limiter = new DenialRateLimiter(5000);
-        limiter.recordDenial(DenialType.PLACEMENT, 0);
-        limiter.recordDenial(DenialType.PLACEMENT, 1000);
-        limiter.recordDenial(DenialType.PLACEMENT, 2000);
+        limiter.recordDenial("world", DenialType.PLACEMENT, 0);
+        limiter.recordDenial("world", DenialType.PLACEMENT, 1000);
+        limiter.recordDenial("world", DenialType.PLACEMENT, 2000);
 
-        Optional<Integer> result = limiter.recordDenial(DenialType.PLACEMENT, 5000);
+        Optional<Integer> result = limiter.recordDenial("world", DenialType.PLACEMENT, 5000);
 
         assertEquals(Optional.of(3), result);
     }
@@ -43,10 +43,32 @@ class DenialRateLimiterTest {
     @Test
     void placementAndPickupCooldownsAreIndependent() {
         DenialRateLimiter limiter = new DenialRateLimiter(5000);
-        limiter.recordDenial(DenialType.PLACEMENT, 0);
+        limiter.recordDenial("world", DenialType.PLACEMENT, 0);
 
-        Optional<Integer> pickupResult = limiter.recordDenial(DenialType.PICKUP, 1000);
+        Optional<Integer> pickupResult = limiter.recordDenial("world", DenialType.PICKUP, 1000);
 
         assertEquals(Optional.of(1), pickupResult);
+    }
+
+    @Test
+    void worldsHaveIndependentCooldownsForSameDenialType() {
+        DenialRateLimiter limiter = new DenialRateLimiter(5000);
+        limiter.recordDenial("world", DenialType.PLACEMENT, 0);
+
+        Optional<Integer> otherWorldResult = limiter.recordDenial("world_nether", DenialType.PLACEMENT, 1000);
+
+        assertEquals(Optional.of(1), otherWorldResult);
+    }
+
+    @Test
+    void updatingCooldownPreservesPendingCounts() {
+        DenialRateLimiter limiter = new DenialRateLimiter(5000);
+        limiter.recordDenial("world", DenialType.PLACEMENT, 0);
+        limiter.recordDenial("world", DenialType.PLACEMENT, 1000);
+
+        limiter.setCooldownMillis(2000);
+        Optional<Integer> result = limiter.recordDenial("world", DenialType.PLACEMENT, 2000);
+
+        assertEquals(Optional.of(2), result);
     }
 }

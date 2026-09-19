@@ -44,7 +44,12 @@ public final class EndermanGriefControlMod implements ModInitializer {
 
     public static void setConfig(EndermanGriefControlConfig newConfig) {
         config = newConfig;
-        denialRateLimiter = new DenialRateLimiter(newConfig.denialRateLimitSeconds * 1000L);
+        long cooldownMillis = newConfig.denialRateLimitSeconds * 1000L;
+        if (denialRateLimiter == null) {
+            denialRateLimiter = new DenialRateLimiter(cooldownMillis);
+        } else {
+            denialRateLimiter.setCooldownMillis(cooldownMillis);
+        }
     }
 
     /**
@@ -84,9 +89,10 @@ public final class EndermanGriefControlMod implements ModInitializer {
     /**
      * Called by the pickup/placement mixins whenever a block change was prevented. Always logs the
      * same short console/server-log message (matching the Paper plugin's wording), so admins see
-     * every denial. The chat announcement is rate-limited per {@link DenialType} instead - only
-     * fires when {@link #denialRateLimiter} says this denial's type is due, reporting how many of
-     * that type happened since the last chat message rather than one line per denial.
+     * every denial. The chat announcement is rate-limited per dimension and {@link DenialType}
+     * instead - only fires when {@link #denialRateLimiter} says this dimension's denial type is
+     * due, reporting how many of that type happened there since the last chat message rather than
+     * one line per denial.
      */
     public static void announceBlocked(EnderMan enderman, DenialType type) {
         if (!config.loggingEnabled) {
@@ -97,12 +103,13 @@ public final class EndermanGriefControlMod implements ModInitializer {
 
         LOGGER.info("[Enderman] Denied " + type.actionText() + " at (" + coords + ").");
 
-        denialRateLimiter.recordDenial(type).ifPresent(count -> {
-            if (enderman.level() instanceof ServerLevel serverLevel) {
+        if (enderman.level() instanceof ServerLevel serverLevel) {
+            String scope = serverLevel.dimension().location().toString();
+            denialRateLimiter.recordDenial(scope, type).ifPresent(count -> {
                 Component chatMessage = GriefControlMessages.denied(config.messages.toMessageTemplates(), type, count);
                 CHAT_BROADCASTER.broadcastToWorld(serverLevel, chatMessage);
-            }
-        });
+            });
+        }
     }
 
     /**

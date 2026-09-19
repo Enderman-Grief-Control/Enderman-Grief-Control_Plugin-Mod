@@ -103,8 +103,8 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
     }
 
     /**
-     * Minimum time between denial chat announcements, per {@link DenialType}. Does not affect the
-     * console/server-log line, which always logs every individual denial.
+     * Minimum time between denial chat announcements, per world and {@link DenialType}. Does not
+     * affect the console/server-log line, which always logs every individual denial.
      */
     private long getDenialRateLimitMillis() {
         return getConfig().getLong("logging.denial-rate-limit-seconds", 10) * 1000L;
@@ -186,15 +186,15 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
      * Logs that an enderman's block pickup or placement was denied - to the console (Bukkit's
      * logger already prefixes output with "[EndermanGriefControl]" and its own timestamp, so the
      * message itself stays short), every single time. The chat announcement, matching the Fabric
-     * mod's, is rate-limited per {@link DenialType} instead - only fires when
-     * {@link #denialRateLimiter} says this denial's type is due, reporting how many of that type
-     * happened since the last chat message rather than one line per denial.
+     * mod's, is rate-limited per world and {@link DenialType} instead - only fires when
+     * {@link #denialRateLimiter} says this world's denial type is due, reporting how many of that
+     * type happened there since the last chat message rather than one line per denial.
      */
     public void logEndermanBlockCancel(Block block, DenialType type) {
         String coords = block.getX() + ", " + block.getY() + ", " + block.getZ();
         getLogger().info("Denied " + type.actionText() + " at (" + coords + ").");
 
-        denialRateLimiter.recordDenial(type).ifPresent(count ->
+        denialRateLimiter.recordDenial(block.getWorld().getName(), type).ifPresent(count ->
                 chatBroadcaster.broadcastToWorld(block.getWorld(),
                         GriefControlMessages.denied(messageTemplates, type, count)));
     }
@@ -286,7 +286,7 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
     private void handleReload(CommandSender sender) {
         reloadConfig();
         messageTemplates = PaperMessageTemplateLoader.load(getConfig());
-        denialRateLimiter = new DenialRateLimiter(getDenialRateLimitMillis());
+        denialRateLimiter.setCooldownMillis(getDenialRateLimitMillis());
         heldBlockMonitor.armPendingDiscovery(); // Config may have re-enabled worlds by hand-edit.
         sender.sendMessage(Component.text("EndermanGriefControl configuration reloaded."));
         getLogger().info("Configuration reloaded by " + sender.getName());
