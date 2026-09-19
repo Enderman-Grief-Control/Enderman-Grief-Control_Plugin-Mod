@@ -165,10 +165,31 @@ jobs:
       PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
 
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - uses: actions/download-artifact@v4
         with:
           name: release-jars
           path: release-jars
+
+      - name: Pick release notes range
+        id: notes-range
+        run: |
+          set -euo pipefail
+
+          start_tag=$(git tag --list "$PLATFORM-v*" --sort=-v:refname \
+            | grep -Ev "^$PLATFORM-v[0-9]+\.[0-9]+\.[0-9]+-" \
+            | grep -v "^$TAG$" \
+            | head -n 1 || true)
+
+          if [[ -n "$start_tag" ]]; then
+            echo "start_tag=$start_tag" >> "$GITHUB_OUTPUT"
+            echo "Generating release notes from $start_tag to $TAG."
+          else
+            echo "No previous official $PLATFORM release tag found; using GitHub's default release notes range."
+          fi
 
       - name: Create GitHub Release
         run: |
@@ -180,6 +201,9 @@ jobs:
           flags=()
           if [[ "$PRERELEASE" == "true" ]]; then
             flags+=(--prerelease)
+          fi
+          if [[ -n "${{ steps.notes-range.outputs.start_tag }}" ]]; then
+            flags+=(--notes-start-tag "${{ steps.notes-range.outputs.start_tag }}")
           fi
           gh release create "$TAG" release-jars/*.jar \
             --repo "$GITHUB_REPOSITORY" \
@@ -314,6 +338,9 @@ jobs:
       CF_PROJECT_ID: ${{ vars.CURSEFORGE_PAPER_PROJECT_ID }}
       # Bukkit Plugins projects use their own host; Minecraft mods use minecraft.curseforge.com.
       CF_API: https://dev.bukkit.org
+      # Bukkit's versions endpoint can contain duplicate names across version groups. This is the
+      # Minecraft 1.21.x game-version type used by the current GAME_VERSIONS list.
+      CF_GAME_VERSION_TYPE_ID: "77784"
 
     steps:
       - uses: actions/download-artifact@v4
@@ -332,10 +359,10 @@ jobs:
           missing=()
           while read -r name; do
             [[ -z "$name" ]] && continue
-            match=$(jq -c --arg n "$name" '[.[] | select(.name == $n)]' versions.json)
+            match=$(jq -c --arg n "$name" --arg type "$CF_GAME_VERSION_TYPE_ID" '[.[] | select(.name == $n and (.gameVersionTypeID | tostring) == $type)]' versions.json)
             count=$(jq 'length' <<<"$match")
             if [[ "$count" == "0" ]]; then
-              echo "::warning title=CurseForge game version unavailable::Skipping Paper game version '$name'; it is not listed by $CF_API/api/game/versions yet."
+              echo "::warning title=CurseForge game version unavailable::Skipping Paper game version '$name'; it is not listed under CurseForge gameVersionTypeID $CF_GAME_VERSION_TYPE_ID yet."
               missing+=("$name")
               continue
             fi
