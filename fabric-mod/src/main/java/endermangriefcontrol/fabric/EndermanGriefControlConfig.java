@@ -2,6 +2,7 @@ package endermangriefcontrol.fabric;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonParseException;
 import endermangriefcontrol.messaging.config.MessageTemplatesData;
 import net.fabricmc.loader.api.FabricLoader;
 
@@ -39,10 +40,17 @@ public final class EndermanGriefControlConfig {
             try (var reader = Files.newBufferedReader(CONFIG_PATH)) {
                 EndermanGriefControlConfig loaded = GSON.fromJson(reader, EndermanGriefControlConfig.class);
                 if (loaded != null) {
+                    if (loaded.messages == null) {
+                        loaded.messages = MessageTemplatesData.defaults();
+                    }
                     return loaded;
                 }
             } catch (IOException e) {
                 EndermanGriefControlMod.LOGGER.warn("Failed to read {}, using defaults.", CONFIG_PATH, e);
+            } catch (JsonParseException e) {
+                // Don't overwrite a hand-edited file that just has a typo; fall back in memory only.
+                EndermanGriefControlMod.LOGGER.warn("Failed to parse {}, using defaults (file left untouched).", CONFIG_PATH, e);
+                return new EndermanGriefControlConfig();
             }
         }
 

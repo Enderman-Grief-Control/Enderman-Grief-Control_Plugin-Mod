@@ -24,15 +24,25 @@ public final class FabricChatBroadcaster implements ChatBroadcaster<ServerLevel>
             server = startedServer;
             audiences = FabricServerAudiences.of(startedServer);
         });
+        // Drop the references so a stale server/audiences from a previous world (singleplayer)
+        // is never used before the next SERVER_STARTED.
+        ServerLifecycleEvents.SERVER_STOPPED.register(stoppedServer -> {
+            server = null;
+            audiences = null;
+        });
     }
 
     @Override
     public void broadcastToWorld(ServerLevel level, Component message) {
-        audiences.audience(level.players()).sendMessage(message);
+        FabricServerAudiences current = audiences;
+        if (current != null) {
+            current.audience(level.players()).sendMessage(message);
+        }
     }
 
     @Override
     public Iterable<ServerLevel> allWorlds() {
-        return server.getAllLevels();
+        MinecraftServer current = server;
+        return current != null ? current.getAllLevels() : java.util.List.of();
     }
 }
