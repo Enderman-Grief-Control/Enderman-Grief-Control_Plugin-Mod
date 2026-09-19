@@ -87,6 +87,9 @@ jobs:
           java-version: 21
           cache: maven
 
+      - name: Check messaging version pins
+        run: python3 scripts/check_messaging_version_pins.py
+
       - name: Install messaging module
         run: mvn -B -f enderman-grief-control-messaging/pom.xml install
 

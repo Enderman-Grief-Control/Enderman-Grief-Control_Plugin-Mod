@@ -12,8 +12,19 @@ on:
       - master
 
 jobs:
+  messaging-version-pins:
+    name: Messaging version pins
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check messaging version pins
+        run: python3 scripts/check_messaging_version_pins.py
+
   paper:
     name: Paper plugin
+    needs: messaging-version-pins
     runs-on: ubuntu-latest
 
     steps:
@@ -41,6 +52,7 @@ jobs:
 
   fabric:
     name: Fabric mod
+    needs: messaging-version-pins
     runs-on: ubuntu-latest
 
     steps:
