@@ -314,6 +314,9 @@ jobs:
       CF_PROJECT_ID: ${{ vars.CURSEFORGE_PAPER_PROJECT_ID }}
       # Bukkit Plugins projects use their own host; Minecraft mods use minecraft.curseforge.com.
       CF_API: https://dev.bukkit.org
+      # Bukkit's versions endpoint can contain duplicate names across version groups. This is the
+      # Minecraft 1.21.x game-version type used by the current GAME_VERSIONS list.
+      CF_GAME_VERSION_TYPE_ID: "77784"
 
     steps:
       - uses: actions/download-artifact@v4
@@ -332,10 +335,10 @@ jobs:
           missing=()
           while read -r name; do
             [[ -z "$name" ]] && continue
-            match=$(jq -c --arg n "$name" '[.[] | select(.name == $n)]' versions.json)
+            match=$(jq -c --arg n "$name" --arg type "$CF_GAME_VERSION_TYPE_ID" '[.[] | select(.name == $n and (.gameVersionTypeID | tostring) == $type)]' versions.json)
             count=$(jq 'length' <<<"$match")
             if [[ "$count" == "0" ]]; then
-              echo "::warning title=CurseForge game version unavailable::Skipping Paper game version '$name'; it is not listed by $CF_API/api/game/versions yet."
+              echo "::warning title=CurseForge game version unavailable::Skipping Paper game version '$name'; it is not listed under CurseForge gameVersionTypeID $CF_GAME_VERSION_TYPE_ID yet."
               missing+=("$name")
               continue
             fi
