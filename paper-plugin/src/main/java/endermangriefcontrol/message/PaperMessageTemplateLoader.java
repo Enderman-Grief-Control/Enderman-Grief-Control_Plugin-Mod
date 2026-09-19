@@ -1,11 +1,8 @@
 package endermangriefcontrol.message;
 
-import endermangriefcontrol.messaging.MessageTemplate;
 import endermangriefcontrol.messaging.MessageTemplates;
-import net.kyori.adventure.text.format.NamedTextColor;
+import endermangriefcontrol.messaging.config.MessageTemplatesData;
 import org.bukkit.configuration.ConfigurationSection;
-
-import java.util.Locale;
 
 /**
  * Tolerantly parses the "messages" section of config.yml, falling back to
@@ -23,32 +20,25 @@ public final class PaperMessageTemplateLoader {
             return MessageTemplates.DEFAULTS;
         }
 
-        return new MessageTemplates(
-                section.getString("prefix", MessageTemplates.DEFAULTS.prefixText()),
-                loadTemplate(section.getConfigurationSection("denied-placement"), MessageTemplates.DEFAULTS.deniedPlacement()),
-                loadTemplate(section.getConfigurationSection("denied-pickup"), MessageTemplates.DEFAULTS.deniedPickup()),
-                loadTemplate(section.getConfigurationSection("held-block-alert"), MessageTemplates.DEFAULTS.heldBlockAlert()),
-                loadTemplate(section.getConfigurationSection("held-block-cleared"), MessageTemplates.DEFAULTS.heldBlockCleared())
-        );
+        MessageTemplatesData data = MessageTemplatesData.defaults();
+        data.prefix = section.getString("prefix", data.prefix);
+        data.deniedPlacement = loadTemplate(section.getConfigurationSection("denied-placement"), data.deniedPlacement);
+        data.deniedPickup = loadTemplate(section.getConfigurationSection("denied-pickup"), data.deniedPickup);
+        data.heldBlockAlert = loadTemplate(section.getConfigurationSection("held-block-alert"), data.heldBlockAlert);
+        data.heldBlockCleared = loadTemplate(section.getConfigurationSection("held-block-cleared"), data.heldBlockCleared);
+        return data.toMessageTemplates();
     }
 
-    private static MessageTemplate loadTemplate(ConfigurationSection section, MessageTemplate fallback) {
+    private static MessageTemplatesData.MessageTemplateData loadTemplate(
+            ConfigurationSection section, MessageTemplatesData.MessageTemplateData fallback) {
         if (section == null) {
             return fallback;
         }
-        return new MessageTemplate(
-                color(section.getString("prefix-color"), fallback.prefixColor()),
-                section.getString("body", fallback.body()),
-                color(section.getString("body-color"), fallback.bodyColor()),
-                color(section.getString("coords-color"), fallback.coordsColor())
-        );
-    }
-
-    private static NamedTextColor color(String name, NamedTextColor fallback) {
-        if (name == null) {
-            return fallback;
-        }
-        NamedTextColor resolved = NamedTextColor.NAMES.value(name.toLowerCase(Locale.ROOT));
-        return resolved != null ? resolved : fallback;
+        MessageTemplatesData.MessageTemplateData data = new MessageTemplatesData.MessageTemplateData();
+        data.prefixColor = section.getString("prefix-color", fallback.prefixColor);
+        data.body = section.getString("body", fallback.body);
+        data.bodyColor = section.getString("body-color", fallback.bodyColor);
+        data.coordsColor = section.getString("coords-color", fallback.coordsColor);
+        return data;
     }
 }

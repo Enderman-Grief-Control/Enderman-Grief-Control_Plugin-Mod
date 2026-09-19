@@ -13,6 +13,7 @@ import endermangriefcontrol.fabric.message.FabricChatBroadcaster;
 import endermangriefcontrol.messaging.DenialRateLimiter;
 import endermangriefcontrol.messaging.DenialType;
 import endermangriefcontrol.messaging.GriefControlMessages;
+import endermangriefcontrol.messaging.MessageTemplates;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,6 +23,7 @@ public final class EndermanGriefControlMod implements ModInitializer {
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     private static EndermanGriefControlConfig config;
+    private static MessageTemplates messageTemplates = MessageTemplates.DEFAULTS;
     private static DenialRateLimiter denialRateLimiter;
     private static final HeldBlockMonitor HELD_BLOCK_MONITOR = new HeldBlockMonitor();
     private static final FabricChatBroadcaster CHAT_BROADCASTER = new FabricChatBroadcaster();
@@ -29,6 +31,7 @@ public final class EndermanGriefControlMod implements ModInitializer {
     @Override
     public void onInitialize() {
         config = EndermanGriefControlConfig.load();
+        messageTemplates = config.messages.toMessageTemplates();
         denialRateLimiter = new DenialRateLimiter(config.denialRateLimitSeconds * 1000L);
         TestModeLogger.init();
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
@@ -44,6 +47,7 @@ public final class EndermanGriefControlMod implements ModInitializer {
 
     public static void setConfig(EndermanGriefControlConfig newConfig) {
         config = newConfig;
+        messageTemplates = newConfig.messages.toMessageTemplates();
         long cooldownMillis = newConfig.denialRateLimitSeconds * 1000L;
         if (denialRateLimiter == null) {
             denialRateLimiter = new DenialRateLimiter(cooldownMillis);
@@ -106,7 +110,7 @@ public final class EndermanGriefControlMod implements ModInitializer {
         if (enderman.level() instanceof ServerLevel serverLevel) {
             String scope = serverLevel.dimension().location().toString();
             denialRateLimiter.recordDenial(scope, type).ifPresent(count -> {
-                Component chatMessage = GriefControlMessages.denied(config.messages.toMessageTemplates(), type, count);
+                Component chatMessage = GriefControlMessages.denied(messageTemplates, type, count);
                 CHAT_BROADCASTER.broadcastToWorld(serverLevel, chatMessage);
             });
         }
@@ -126,7 +130,7 @@ public final class EndermanGriefControlMod implements ModInitializer {
         LOGGER.info("[Enderman] holding a block at (" + coords + ").");
 
         if (enderman.level() instanceof ServerLevel serverLevel) {
-            Component chatMessage = GriefControlMessages.heldBlockAlert(config.messages.toMessageTemplates(), coords);
+            Component chatMessage = GriefControlMessages.heldBlockAlert(messageTemplates, coords);
             CHAT_BROADCASTER.broadcastToWorld(serverLevel, chatMessage);
         }
     }
@@ -161,7 +165,7 @@ public final class EndermanGriefControlMod implements ModInitializer {
             return;
         }
 
-        Component chatMessage = GriefControlMessages.heldBlockCleared(config.messages.toMessageTemplates(), count);
+        Component chatMessage = GriefControlMessages.heldBlockCleared(messageTemplates, count);
         CHAT_BROADCASTER.broadcastToWorld(level, chatMessage);
     }
 }
