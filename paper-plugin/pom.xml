@@ -28,6 +28,9 @@
         <minecraft.version>1.21</minecraft.version>
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- Versioned independently of <revision> - the messaging module doesn't participate in
+             this plugin's release/SNAPSHOT cadence, it's a separately-installed shared library. -->
+        <enderman-grief-control-messaging.version>1.1.0</enderman-grief-control-messaging.version>
     </properties>
 
     <!-- PaperMC maven repo -->
@@ -46,6 +49,15 @@
             <version>1.21.11-R0.1-SNAPSHOT</version>
             <!-- 'provided' = available at runtime on the server, not bundled into your plugin jar -->
             <scope>provided</scope>
+        </dependency>
+
+        <!-- Shared chat/announcement message model, also used by fabric-mod. Its own Adventure
+             dependency is 'provided' (paper-api already supplies Adventure at runtime), so only
+             our own endermangriefcontrol.messaging classes need to be shaded into the plugin jar. -->
+        <dependency>
+            <groupId>endermangriefcontrol</groupId>
+            <artifactId>enderman-grief-control-messaging</artifactId>
+            <version>${enderman-grief-control-messaging.version}</version>
         </dependency>
 
         <!-- Test dependencies -->
@@ -122,6 +134,38 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.5.2</version>
+            </plugin>
+
+            <!-- Bundles enderman-grief-control-messaging's classes into the plugin jar (its own
+                 Adventure dependency is 'provided', so nothing else gets pulled in - paper-api
+                 already supplies Adventure at runtime). Re-declares the mappings-namespace
+                 manifest entry from maven-jar-plugin above since shading replaces the manifest. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.6.0</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <artifactSet>
+                                <includes>
+                                    <include>endermangriefcontrol:enderman-grief-control-messaging</include>
+                                </includes>
+                            </artifactSet>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <manifestEntries>
+                                        <paperweight-mappings-namespace>mojang</paperweight-mappings-namespace>
+                                    </manifestEntries>
+                                </transformer>
+                            </transformers>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

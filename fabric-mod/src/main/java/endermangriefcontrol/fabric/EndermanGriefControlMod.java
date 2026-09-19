@@ -2,15 +2,18 @@ package endermangriefcontrol.fabric;
 
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
-import net.minecraft.ChatFormatting;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
+import net.kyori.adventure.text.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.monster.EnderMan;
 import endermangriefcontrol.fabric.command.EndermanCommand;
 import endermangriefcontrol.fabric.debug.TestModeLogger;
 import endermangriefcontrol.fabric.heldblock.HeldBlockHandling;
 import endermangriefcontrol.fabric.heldblock.HeldBlockMonitor;
+import endermangriefcontrol.fabric.message.FabricChatBroadcaster;
+import endermangriefcontrol.messaging.DenialRateLimiter;
+import endermangriefcontrol.messaging.DenialType;
+import endermangriefcontrol.messaging.GriefControlMessages;
+import endermangriefcontrol.messaging.MessageTemplates;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,15 +23,21 @@ public final class EndermanGriefControlMod implements ModInitializer {
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     private static EndermanGriefControlConfig config;
+    private static MessageTemplates messageTemplates = MessageTemplates.DEFAULTS;
+    private static DenialRateLimiter denialRateLimiter;
     private static final HeldBlockMonitor HELD_BLOCK_MONITOR = new HeldBlockMonitor();
+    private static final FabricChatBroadcaster CHAT_BROADCASTER = new FabricChatBroadcaster();
 
     @Override
     public void onInitialize() {
         config = EndermanGriefControlConfig.load();
+        messageTemplates = config.messages.toMessageTemplates();
+        denialRateLimiter = new DenialRateLimiter(config.denialRateLimitSeconds * 1000L);
         TestModeLogger.init();
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
                 EndermanCommand.register(dispatcher));
         HELD_BLOCK_MONITOR.register();
+        CHAT_BROADCASTER.register();
         LOGGER.info("EndermanGriefControl has been initialized.");
     }
 
@@ -38,6 +47,13 @@ public final class EndermanGriefControlMod implements ModInitializer {
 
     public static void setConfig(EndermanGriefControlConfig newConfig) {
         config = newConfig;
+        messageTemplates = newConfig.messages.toMessageTemplates();
+        long cooldownMillis = newConfig.denialRateLimitSeconds * 1000L;
+        if (denialRateLimiter == null) {
+            denialRateLimiter = new DenialRateLimiter(cooldownMillis);
+        } else {
+            denialRateLimiter.setCooldownMillis(cooldownMillis);
+        }
     }
 
     /**
@@ -75,26 +91,28 @@ public final class EndermanGriefControlMod implements ModInitializer {
     }
 
     /**
-     * Called by the pickup/placement mixins whenever a block change was prevented. Logs the same
-     * short message to the console/log file that's shown in chat (matching the Paper plugin's log
-     * wording), so players — not just admins reading logs — can see it happened.
+     * Called by the pickup/placement mixins whenever a block change was prevented. Always logs the
+     * same short console/server-log message (matching the Paper plugin's wording), so admins see
+     * every denial. The chat announcement is rate-limited per dimension and {@link DenialType}
+     * instead - only fires when {@link #denialRateLimiter} says this dimension's denial type is
+     * due, reporting how many of that type happened there since the last chat message rather than
+     * one line per denial.
      */
-    public static void announceBlocked(EnderMan enderman, String action) {
+    public static void announceBlocked(EnderMan enderman, DenialType type) {
         if (!config.loggingEnabled) {
             return;
         }
 
-        String coords = "(" + enderman.getBlockX() + ", " + enderman.getBlockY() + ", " + enderman.getBlockZ() + ")";
+        String coords = enderman.getBlockX() + ", " + enderman.getBlockY() + ", " + enderman.getBlockZ();
 
-        LOGGER.info("[Enderman] Denied " + action + " at " + coords + ".");
+        LOGGER.info("[Enderman] Denied " + type.actionText() + " at (" + coords + ").");
 
         if (enderman.level() instanceof ServerLevel serverLevel) {
-            MutableComponent chatMessage = Component.literal("[Enderman] ")
-                    .withStyle(ChatFormatting.LIGHT_PURPLE)
-                    .append(Component.literal("Denied " + action + " at ")
-                            .withStyle(ChatFormatting.GRAY))
-                    .append(Component.literal(coords + ".").withStyle(ChatFormatting.GREEN));
-            serverLevel.getServer().getPlayerList().broadcastSystemMessage(chatMessage, false);
+            String scope = serverLevel.dimension().location().toString();
+            denialRateLimiter.recordDenial(scope, type).ifPresent(count -> {
+                Component chatMessage = GriefControlMessages.denied(messageTemplates, type, count);
+                CHAT_BROADCASTER.broadcastToWorld(serverLevel, chatMessage);
+            });
         }
     }
 
@@ -102,48 +120,52 @@ public final class EndermanGriefControlMod implements ModInitializer {
      * Called periodically by HeldBlockMonitor for a stuck holder under "alert" handling. Not gated
      * by loggingEnabled - choosing "alert" as the held-block handling mode is itself the opt-in;
      * requiring the separate, unrelated loggingEnabled toggle too would mean a player who sets
-     * "alert" but forgets to also flip loggingEnabled gets silent, useless alerts. Colored gold,
-     * distinct from announceBlocked's light-purple, so it stands out as "go hunt this" rather than
-     * blending into routine denial spam.
+     * "alert" but forgets to also flip loggingEnabled gets silent, useless alerts. Colored red,
+     * distinct from every other announcement's purple/green/cyan families, so it stands out as
+     * "go hunt this" rather than blending into routine denial spam.
      */
     public static void announceHeldBlockAlert(EnderMan enderman) {
-        String coords = "(" + enderman.getBlockX() + ", " + enderman.getBlockY() + ", " + enderman.getBlockZ() + ")";
+        String coords = enderman.getBlockX() + ", " + enderman.getBlockY() + ", " + enderman.getBlockZ();
 
-        LOGGER.info("[Enderman] holding a block at " + coords + ".");
+        LOGGER.info("[Enderman] holding a block at (" + coords + ").");
 
         if (enderman.level() instanceof ServerLevel serverLevel) {
-            MutableComponent chatMessage = Component.literal("[Enderman] ")
-                    .withStyle(ChatFormatting.GOLD)
-                    .append(Component.literal("holding a block at ")
-                            .withStyle(ChatFormatting.GRAY))
-                    .append(Component.literal(coords + ".").withStyle(ChatFormatting.GREEN));
-            serverLevel.getServer().getPlayerList().broadcastSystemMessage(chatMessage, false);
+            Component chatMessage = GriefControlMessages.heldBlockAlert(messageTemplates, coords);
+            CHAT_BROADCASTER.broadcastToWorld(serverLevel, chatMessage);
         }
     }
 
     /**
-     * Called by HeldBlockMonitor whenever a stuck holder under "auto-clear" handling is resolved.
-     * Gated by logRemovals - a separate toggle from loggingEnabled (which only covers denials),
-     * since a clear is a one-time confirmation the actual problem got fixed, not a repeating
-     * "still trying and being stopped" signal - most installs will want this on even with denial
-     * logging off, hence its own default-true toggle.
+     * Called by HeldBlockMonitor whenever a stuck holder under "auto-clear" handling is resolved -
+     * console/server-log only, every individual clear, regardless of how many endermen a single
+     * resolution pass resolves. Gated by logRemovals - a separate toggle from loggingEnabled
+     * (which only covers denials), since a clear is a one-time confirmation the actual problem got
+     * fixed, not a repeating "still trying and being stopped" signal - most installs will want this
+     * on even with denial logging off, hence its own default-true toggle. The chat announcement is
+     * handled separately, once per affected level per pass, by {@link
+     * #announceHeldBlockClearedBatch(ServerLevel, int)}.
      */
     public static void announceHeldBlockCleared(EnderMan enderman) {
         if (!config.logRemovals) {
             return;
         }
 
-        String coords = "(" + enderman.getBlockX() + ", " + enderman.getBlockY() + ", " + enderman.getBlockZ() + ")";
+        String coords = enderman.getBlockX() + ", " + enderman.getBlockY() + ", " + enderman.getBlockZ();
 
-        LOGGER.info("[Enderman] holding cleared at " + coords + ".");
+        LOGGER.info("[Enderman] holding cleared at (" + coords + ").");
+    }
 
-        if (enderman.level() instanceof ServerLevel serverLevel) {
-            MutableComponent chatMessage = Component.literal("[Enderman] ")
-                    .withStyle(ChatFormatting.AQUA)
-                    .append(Component.literal("holding cleared at ")
-                            .withStyle(ChatFormatting.GRAY))
-                    .append(Component.literal(coords + ".").withStyle(ChatFormatting.GREEN));
-            serverLevel.getServer().getPlayerList().broadcastSystemMessage(chatMessage, false);
+    /**
+     * Reports how many stuck holders were auto-cleared in {@code level} during a single resolution
+     * pass, as one chat message instead of one per enderman. Gated by logRemovals, same as the
+     * per-event console line in {@link #announceHeldBlockCleared(EnderMan)}.
+     */
+    public static void announceHeldBlockClearedBatch(ServerLevel level, int count) {
+        if (!config.logRemovals) {
+            return;
         }
+
+        Component chatMessage = GriefControlMessages.heldBlockCleared(messageTemplates, count);
+        CHAT_BROADCASTER.broadcastToWorld(level, chatMessage);
     }
 }

@@ -8,6 +8,15 @@ if exist "%~dp0.env" (
 )
 
 echo ============================================
+echo  Installing shared messaging module
+echo ============================================
+pushd enderman-grief-control-messaging
+call mvn install
+if errorlevel 1 goto :fail
+popd
+
+echo.
+echo ============================================
 echo  Building release: Paper plugin
 echo ============================================
 pushd paper-plugin

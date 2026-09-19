@@ -1,0 +1,374 @@
+name: Release
+
+# Paper and Fabric release independently: push a tag like paper-v1.2.0 or fabric-v1.2.1.
+# The tag is the version source of truth - it's injected into the build below.
+on:
+  push:
+    tags:
+      - "paper-v*"
+      - "fabric-v*"
+
+# Release builds must never bake in test mode (see TestModeLogger), whatever the runner has set.
+env:
+  ENDERMAN_GRIEF_TEST_MODE: "false"
+  # Hardcoded until the MC-version matrix stage moves this into per-platform config.
+  # Modrinth's "1.21.x" grouping is just this range listed out.
+  GAME_VERSIONS: |
+    1.21
+    1.21.1
+    1.21.2
+    1.21.3
+    1.21.4
+    1.21.5
+    1.21.6
+    1.21.7
+    1.21.8
+    1.21.9
+    1.21.10
+    1.21.11
+
+jobs:
+  prepare:
+    name: Parse tag
+    runs-on: ubuntu-latest
+    outputs:
+      platform: ${{ steps.parse.outputs.platform }}
+      version: ${{ steps.parse.outputs.version }}
+      prerelease: ${{ steps.parse.outputs.prerelease }}
+
+    steps:
+      # Full history so the branch check below can compare against origin/master.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Parse tag
+        id: parse
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [[ ! "$TAG" =~ ^(paper|fabric)-v([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?)$ ]]; then
+            echo "Tag '$TAG' must look like paper-v1.2.3 or fabric-v1.2.3 (optionally with a -rc.1 style suffix)."
+            exit 1
+          fi
+          platform="${BASH_REMATCH[1]}"
+          version="${BASH_REMATCH[2]}"
+          echo "platform=$platform" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          # A version with a suffix (1.2.0-rc.1) is published as a pre-release.
+          if [[ "$version" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Releases are cut from master (dev -> master is enforced by master-source-check.yml).
+      - name: Require tagged commit to be on master
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/master; then
+            echo "Tagged commit $GITHUB_SHA is not on master; merge dev into master before tagging."
+            exit 1
+          fi
+
+  build:
+    name: Build ${{ needs.prepare.outputs.platform }} ${{ needs.prepare.outputs.version }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    env:
+      PLATFORM: ${{ needs.prepare.outputs.platform }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Check messaging version pins
+        run: python3 scripts/check_messaging_version_pins.py
+
+      - name: Install messaging module
+        run: mvn -B -f enderman-grief-control-messaging/pom.xml install
+
+      - name: Build Paper plugin
+        if: env.PLATFORM == 'paper'
+        run: mvn -B -f paper-plugin/pom.xml verify "-Drevision=$VERSION"
+
+      - uses: gradle/actions/setup-gradle@v4
+        if: env.PLATFORM == 'fabric'
+
+      - name: Build Fabric mod
+        if: env.PLATFORM == 'fabric'
+        working-directory: fabric-mod
+        run: sh gradlew build "-Pmod_version=$VERSION"
+
+      # The shaded/remapped jar only - not paper's original-*.jar or fabric's -sources.jar.
+      - name: Collect release jars
+        run: |
+          mkdir release-jars
+          if [[ "$PLATFORM" == "paper" ]]; then
+            cp paper-plugin/target/EndermanGriefControl-*.jar release-jars/
+          else
+            find fabric-mod/build/libs -name '*.jar' ! -name '*-sources.jar' -exec cp {} release-jars/ \;
+          fi
+          ls -l release-jars
+          if [[ -z "$(ls -A release-jars)" ]]; then
+            echo "No jars collected."
+            exit 1
+          fi
+
+      - name: Verify test mode is off in the built jar
+        run: |
+          for jar in release-jars/*.jar; do
+            unzip -p "$jar" test-mode.properties | grep -qx 'test-mode=false' \
+              || { echo "$jar was built with test mode enabled."; exit 1; }
+          done
+
+      - name: Verify jar version matches the tag
+        run: |
+          for jar in release-jars/*.jar; do
+            [[ "$jar" == *"-$VERSION.jar" ]] || { echo "$jar does not end in -$VERSION.jar"; exit 1; }
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-jars
+          path: release-jars/*.jar
+          if-no-files-found: error
+
+  # Manual gate: the build above runs unattended, but nothing public happens until the reviewer
+  # configured on the "release" environment (repo Settings -> Environments) approves. One gate
+  # covers every publish job below, so a release needs a single approval.
+  approve:
+    name: Approve publish
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    environment: release
+
+    steps:
+      - run: echo "Publishing ${{ needs.prepare.outputs.platform }} ${{ needs.prepare.outputs.version }}"
+
+  github-release:
+    name: GitHub Release
+    needs: [prepare, approve]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+      PLATFORM: ${{ needs.prepare.outputs.platform }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+      PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-jars
+          path: release-jars
+
+      - name: Create GitHub Release
+        run: |
+          if [[ "$PLATFORM" == "paper" ]]; then
+            title="Paper plugin v$VERSION"
+          else
+            title="Fabric mod v$VERSION"
+          fi
+          flags=()
+          if [[ "$PRERELEASE" == "true" ]]; then
+            flags+=(--prerelease)
+          fi
+          gh release create "$TAG" release-jars/*.jar \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$title" \
+            --generate-notes \
+            "${flags[@]}"
+
+  # One Modrinth project hosts both platforms, so both tag types publish to the same project id.
+  # The GitHub Release goes first and is the source of the changelog, so Modrinth and GitHub
+  # always show the same notes.
+  modrinth:
+    name: Modrinth
+    needs: [prepare, github-release]
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+      PLATFORM: ${{ needs.prepare.outputs.platform }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+      PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-jars
+          path: release-jars
+
+      - name: Read release notes from GitHub Release
+        id: notes
+        run: |
+          delimiter="EOF_$(openssl rand -hex 8)"
+          {
+            echo "body<<$delimiter"
+            gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body --jq .body
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Pick display values
+        id: meta
+        run: |
+          # Matches the existing listing's naming (Paper-1.1.0 / Fabric-1.1.0). Used as both the
+          # display name and the version number, which also keeps the two platforms' numbers unique.
+          if [[ "$PLATFORM" == "paper" ]]; then
+            echo "name=Paper-$VERSION" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=Fabric-$VERSION" >> "$GITHUB_OUTPUT"
+          fi
+          if [[ "$PRERELEASE" == "true" ]]; then
+            echo "type=beta" >> "$GITHUB_OUTPUT"
+          else
+            echo "type=release" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: Kira-NT/mc-publish@v3
+        with:
+          modrinth-id: ${{ vars.MODRINTH_PROJECT_ID }}
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          modrinth-files: release-jars/*.jar
+          modrinth-name: ${{ steps.meta.outputs.name }}
+          modrinth-version: ${{ steps.meta.outputs.name }}
+          modrinth-version-type: ${{ steps.meta.outputs.type }}
+          modrinth-loaders: ${{ needs.prepare.outputs.platform }}
+          modrinth-game-versions: ${{ env.GAME_VERSIONS }}
+          modrinth-changelog: ${{ steps.notes.outputs.body }}
+
+  # Fabric only: mc-publish doesn't support a Paper/Bukkit loader on CurseForge, so the Paper
+  # CurseForge project needs a different mechanism (not wired up yet). Fabric and Paper are
+  # separate CurseForge projects, hence the per-platform project id variable.
+  curseforge-fabric:
+    name: CurseForge (Fabric)
+    if: needs.prepare.outputs.platform == 'fabric'
+    needs: [prepare, github-release]
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+      PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-jars
+          path: release-jars
+
+      - name: Read release notes from GitHub Release
+        id: notes
+        run: |
+          delimiter="EOF_$(openssl rand -hex 8)"
+          {
+            echo "body<<$delimiter"
+            gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body --jq .body
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Pick release type
+        id: meta
+        run: |
+          if [[ "$PRERELEASE" == "true" ]]; then
+            echo "type=beta" >> "$GITHUB_OUTPUT"
+          else
+            echo "type=release" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: Kira-NT/mc-publish@v3
+        with:
+          curseforge-id: ${{ vars.CURSEFORGE_FABRIC_PROJECT_ID }}
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          curseforge-files: release-jars/*.jar
+          curseforge-name: Fabric-${{ needs.prepare.outputs.version }}
+          curseforge-version: Fabric-${{ needs.prepare.outputs.version }}
+          curseforge-version-type: ${{ steps.meta.outputs.type }}
+          curseforge-loaders: fabric
+          curseforge-game-versions: ${{ env.GAME_VERSIONS }}
+          curseforge-java: "21"
+          curseforge-changelog: ${{ steps.notes.outputs.body }}
+
+  # Paper only: the Paper plugin lives on CurseForge's Bukkit Plugins section, which mc-publish
+  # can't target, so this calls the CurseForge upload API directly (a flow worth knowing
+  # anyway): look up game version ids -> upload the jar with a metadata JSON.
+  curseforge-paper:
+    name: CurseForge (Paper)
+    if: needs.prepare.outputs.platform == 'paper'
+    needs: [prepare, github-release]
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+      PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+      CF_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
+      CF_PROJECT_ID: ${{ vars.CURSEFORGE_PAPER_PROJECT_ID }}
+      # Bukkit Plugins projects use their own host; Minecraft mods use minecraft.curseforge.com.
+      CF_API: https://dev.bukkit.org
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-jars
+          path: release-jars
+
+      - name: Upload to CurseForge
+        run: |
+          set -euo pipefail
+
+          # Game versions are referenced by numeric id, so map our names to ids first.
+          curl -sS --fail-with-body -H "X-Api-Token: $CF_TOKEN" "$CF_API/api/game/versions" > versions.json
+
+          ids=()
+          missing=()
+          while read -r name; do
+            [[ -z "$name" ]] && continue
+            match=$(jq -c --arg n "$name" '[.[] | select(.name == $n)]' versions.json)
+            count=$(jq 'length' <<<"$match")
+            if [[ "$count" == "0" ]]; then
+              echo "::warning title=CurseForge game version unavailable::Skipping Paper game version '$name'; it is not listed by $CF_API/api/game/versions yet."
+              missing+=("$name")
+              continue
+            fi
+            if [[ "$count" != "1" ]]; then
+              echo "Game version '$name' matched $count CurseForge entries (expected exactly 1): $match"
+              exit 1
+            fi
+            id=$(jq '.[0].id' <<<"$match")
+            echo "Game version $name -> id $id"
+            ids+=("$id")
+          done <<<"$GAME_VERSIONS"
+
+          if [[ "${#ids[@]}" == "0" ]]; then
+            echo "None of the configured GAME_VERSIONS matched CurseForge; refusing to upload without game version metadata."
+            exit 1
+          fi
+          if [[ "${#missing[@]}" != "0" ]]; then
+            printf 'Skipped Paper game versions not available on CurseForge yet: %s\n' "${missing[*]}"
+          fi
+
+          if [[ "$PRERELEASE" == "true" ]]; then release_type=beta; else release_type=release; fi
+          notes=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body --jq .body)
+
+          metadata=$(jq -n \
+            --arg changelog "$notes" \
+            --arg name "Paper-$VERSION" \
+            --arg releaseType "$release_type" \
+            --argjson gameVersions "$(printf '%s\n' "${ids[@]}" | jq -s .)" \
+            '{changelog: $changelog, changelogType: "markdown", displayName: $name, gameVersions: $gameVersions, releaseType: $releaseType}')
+
+          jar=$(ls release-jars/*.jar)
+          curl -sS --fail-with-body \
+            -H "X-Api-Token: $CF_TOKEN" \
+            -F "metadata=$metadata" \
+            -F "file=@$jar" \
+            "$CF_API/api/projects/$CF_PROJECT_ID/upload-file"

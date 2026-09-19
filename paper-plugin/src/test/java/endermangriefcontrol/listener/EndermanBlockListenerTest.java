@@ -1,6 +1,9 @@
 package endermangriefcontrol.listener;
 
 import endermangriefcontrol.EndermanGriefControlPlugin;
+import endermangriefcontrol.messaging.DenialType;
+import endermangriefcontrol.messaging.GriefControlMessages;
+import endermangriefcontrol.messaging.MessageTemplates;
 import org.bukkit.Material;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
@@ -11,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.mockbukkit.mockbukkit.MockBukkit;
 import org.mockbukkit.mockbukkit.ServerMock;
 import org.mockbukkit.mockbukkit.block.BlockMock;
+import org.mockbukkit.mockbukkit.entity.PlayerMock;
 import org.mockbukkit.mockbukkit.world.WorldMock;
 
 import java.util.ArrayList;
@@ -106,6 +110,28 @@ class EndermanBlockListenerTest {
         firePickupEvent(EntityType.ENDERMAN);
 
         assertTrue(records.isEmpty());
+    }
+
+    @Test
+    void deniedPickup_broadcastsChatMessageToPlayersInWorld() {
+        plugin.getConfig().set("logging.enabled", true);
+        PlayerMock player = server.addPlayer();
+        player.teleport(world.getSpawnLocation());
+
+        firePickupEvent(EntityType.ENDERMAN);
+
+        player.assertSaid(GriefControlMessages.denied(MessageTemplates.DEFAULTS, DenialType.PICKUP, 1));
+    }
+
+    @Test
+    void deniedPlacement_broadcastsChatMessageToPlayersInWorld() {
+        plugin.getConfig().set("logging.enabled", true);
+        PlayerMock player = server.addPlayer();
+        player.teleport(world.getSpawnLocation());
+
+        fireBlockChangeEvent(EntityType.ENDERMAN, Material.DIRT);
+
+        player.assertSaid(GriefControlMessages.denied(MessageTemplates.DEFAULTS, DenialType.PLACEMENT, 1));
     }
 
     private List<LogRecord> captureLogRecords() {

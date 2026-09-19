@@ -1,6 +1,7 @@
 package endermangriefcontrol.listener;
 
 import endermangriefcontrol.EndermanGriefControlPlugin;
+import endermangriefcontrol.messaging.DenialType;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.EntityType;
@@ -45,8 +46,8 @@ public final class EndermanBlockListener implements Listener {
         // Optional debug logging. Enderman block-change events always go either to air
         // (pickup) or from air to a block (placement), so getTo() tells us which.
         if (plugin.isLoggingEnabled()) {
-            String action = event.getTo() == Material.AIR ? "pickup" : "placement";
-            plugin.logEndermanBlockCancel(block, action);
+            DenialType type = event.getTo() == Material.AIR ? DenialType.PICKUP : DenialType.PLACEMENT;
+            plugin.logEndermanBlockCancel(block, type);
         }
     }
 }
