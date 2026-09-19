@@ -338,9 +338,21 @@ jobs:
       CF_PROJECT_ID: ${{ vars.CURSEFORGE_PAPER_PROJECT_ID }}
       # Bukkit Plugins projects use their own host; Minecraft mods use minecraft.curseforge.com.
       CF_API: https://dev.bukkit.org
-      # Bukkit's versions endpoint can contain duplicate names across version groups. Bukkit
-      # Plugins uploads must use the Bukkit dependency bucket, not the Minecraft Mods 1.21.x bucket.
-      CF_GAME_VERSION_TYPE_ID: "615"
+      # Accepted Bukkit Plugins game version ids copied from CurseForge's own upload UI.
+      # The UI also selected 1.21-Snapshot as id 12739; intentionally omit it for release jars.
+      PAPER_CURSEFORGE_GAME_VERSION_IDS: |
+        11515 # 1.21
+        12735 # 1.21.1
+        12736 # 1.21.2
+        12737 # 1.21.3
+        12738 # 1.21.4
+        12988 # 1.21.5
+        13473 # 1.21.6
+        13574 # 1.21.7
+        13683 # 1.21.8
+        13933 # 1.21.9
+        13966 # 1.21.10
+        14417 # 1.21.11
 
     steps:
       - uses: actions/download-artifact@v4
@@ -352,36 +364,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Game versions are referenced by numeric id, so map our names to ids first.
-          curl -sS --fail-with-body -H "X-Api-Token: $CF_TOKEN" "$CF_API/api/game/versions" > versions.json
-
-          ids=()
-          missing=()
-          while read -r name; do
-            [[ -z "$name" ]] && continue
-            match=$(jq -c --arg n "$name" --arg type "$CF_GAME_VERSION_TYPE_ID" '[.[] | select(.name == $n and (.gameVersionTypeID | tostring) == $type)]' versions.json)
-            count=$(jq 'length' <<<"$match")
-            if [[ "$count" == "0" ]]; then
-              echo "::warning title=CurseForge game version unavailable::Skipping Paper game version '$name'; it is not listed under CurseForge gameVersionTypeID $CF_GAME_VERSION_TYPE_ID yet."
-              missing+=("$name")
-              continue
-            fi
-            if [[ "$count" != "1" ]]; then
-              echo "Game version '$name' matched $count CurseForge entries (expected exactly 1): $match"
-              exit 1
-            fi
-            id=$(jq '.[0].id' <<<"$match")
-            echo "Game version $name -> id $id"
-            ids+=("$id")
-          done <<<"$GAME_VERSIONS"
-
-          if [[ "${#ids[@]}" == "0" ]]; then
-            echo "None of the configured GAME_VERSIONS matched CurseForge; refusing to upload without game version metadata."
-            exit 1
-          fi
-          if [[ "${#missing[@]}" != "0" ]]; then
-            printf 'Skipped Paper game versions not available on CurseForge yet: %s\n' "${missing[*]}"
-          fi
+          ids_json=$(printf '%s\n' "$PAPER_CURSEFORGE_GAME_VERSION_IDS" \
+            | awk 'NF && $1 !~ /^#/ { print $1 }' \
+            | jq -R 'tonumber' \
+            | jq -s .)
+          echo "Paper CurseForge game version ids: $ids_json"
 
           if [[ "$PRERELEASE" == "true" ]]; then release_type=beta; else release_type=release; fi
           notes=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body --jq .body)
@@ -390,7 +377,7 @@ jobs:
             --arg changelog "$notes" \
             --arg name "Paper-$VERSION" \
             --arg releaseType "$release_type" \
-            --argjson gameVersions "$(printf '%s\n' "${ids[@]}" | jq -s .)" \
+            --argjson gameVersions "$ids_json" \
             '{changelog: $changelog, changelogType: "markdown", displayName: $name, gameVersions: $gameVersions, releaseType: $releaseType}')
 
           jar=$(ls release-jars/*.jar)
