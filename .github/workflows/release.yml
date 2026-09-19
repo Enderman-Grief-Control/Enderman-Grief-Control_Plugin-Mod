@@ -326,10 +326,16 @@ jobs:
           curl -sS --fail-with-body -H "X-Api-Token: $CF_TOKEN" "$CF_API/api/game/versions" > versions.json
 
           ids=()
+          missing=()
           while read -r name; do
             [[ -z "$name" ]] && continue
             match=$(jq -c --arg n "$name" '[.[] | select(.name == $n)]' versions.json)
             count=$(jq 'length' <<<"$match")
+            if [[ "$count" == "0" ]]; then
+              echo "::warning title=CurseForge game version unavailable::Skipping Paper game version '$name'; it is not listed by $CF_API/api/game/versions yet."
+              missing+=("$name")
+              continue
+            fi
             if [[ "$count" != "1" ]]; then
               echo "Game version '$name' matched $count CurseForge entries (expected exactly 1): $match"
               exit 1
@@ -338,6 +344,14 @@ jobs:
             echo "Game version $name -> id $id"
             ids+=("$id")
           done <<<"$GAME_VERSIONS"
+
+          if [[ "${#ids[@]}" == "0" ]]; then
+            echo "None of the configured GAME_VERSIONS matched CurseForge; refusing to upload without game version metadata."
+            exit 1
+          fi
+          if [[ "${#missing[@]}" != "0" ]]; then
+            printf 'Skipped Paper game versions not available on CurseForge yet: %s\n' "${missing[*]}"
+          fi
 
           if [[ "$PRERELEASE" == "true" ]]; then release_type=beta; else release_type=release; fi
           notes=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body --jq .body)
