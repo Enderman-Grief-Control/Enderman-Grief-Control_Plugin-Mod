@@ -127,7 +127,7 @@ cd Enderman-Grief-Control/paper-plugin
 mvn package
 ```
 
-The compiled jar lands at `target/EndermanGriefControl-mc_1.21-paper-1.1.0.jar` — copy it into your server's `plugins/` folder.
+The compiled jar lands at `target/EndermanGriefControl-mc_1.21-paper-1.2.0.jar` — copy it into your server's `plugins/` folder.
 
 Automated tests (MockBukkit-based) run as part of the same `mvn package`, or on their own via `mvn test`.
 
