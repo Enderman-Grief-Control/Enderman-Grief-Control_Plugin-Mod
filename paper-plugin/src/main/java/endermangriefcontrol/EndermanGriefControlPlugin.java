@@ -104,7 +104,7 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
 
     /**
      * Minimum time between denial chat announcements, per {@link DenialType}. Does not affect the
-     * console/log-file line, which always logs every individual denial.
+     * console/server-log line, which always logs every individual denial.
      */
     private long getDenialRateLimitMillis() {
         return getConfig().getLong("logging.denial-rate-limit-seconds", 10) * 1000L;
@@ -202,7 +202,7 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
     /**
      * Logs that an enderman is still stuck holding a block it can no longer place - deliberately
      * worded distinctly from {@link #logEndermanBlockCancel} so it doesn't blend into routine
-     * denial logging when read in a console/log file or in chat. Not gated by
+     * denial logging when read in the console/server log or in chat. Not gated by
      * {@link #isLoggingEnabled()} - choosing "alert" as the held-block handling mode is itself the
      * opt-in.
      */
@@ -216,7 +216,7 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
     }
 
     /**
-     * Logs that a stuck holder was auto-cleared - console/log-file only, every individual clear,
+     * Logs that a stuck holder was auto-cleared - console/server-log only, every individual clear,
      * regardless of how many endermen a single resolution pass resolves. Gated by
      * {@link #isRemovalsLoggingEnabled()} - separate from denial logging, and on by default. The
      * chat announcement is handled separately, once per affected world per pass, by

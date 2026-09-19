@@ -22,7 +22,7 @@ public final class EndermanGriefControlConfig {
 
     // Minimum seconds between denial chat announcements, per denial type (placement and pickup
     // throttled independently). Denials faster than this are counted and rolled into the next
-    // chat message rather than dropped. Doesn't affect the console/log-file line, which always
+    // chat message rather than dropped. Doesn't affect the console/server-log line, which always
     // logs every individual denial. 0 announces every single denial in chat (the old behavior).
     public int denialRateLimitSeconds = 10;
 

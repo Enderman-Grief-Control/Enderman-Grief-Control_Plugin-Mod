@@ -83,7 +83,7 @@ public final class EndermanGriefControlMod implements ModInitializer {
 
     /**
      * Called by the pickup/placement mixins whenever a block change was prevented. Always logs the
-     * same short console/log-file message (matching the Paper plugin's wording), so admins see
+     * same short console/server-log message (matching the Paper plugin's wording), so admins see
      * every denial. The chat announcement is rate-limited per {@link DenialType} instead - only
      * fires when {@link #denialRateLimiter} says this denial's type is due, reporting how many of
      * that type happened since the last chat message rather than one line per denial.
@@ -126,7 +126,7 @@ public final class EndermanGriefControlMod implements ModInitializer {
 
     /**
      * Called by HeldBlockMonitor whenever a stuck holder under "auto-clear" handling is resolved -
-     * console/log-file only, every individual clear, regardless of how many endermen a single
+     * console/server-log only, every individual clear, regardless of how many endermen a single
      * resolution pass resolves. Gated by logRemovals - a separate toggle from loggingEnabled
      * (which only covers denials), since a clear is a one-time confirmation the actual problem got
      * fixed, not a repeating "still trying and being stopped" signal - most installs will want this
