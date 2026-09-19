@@ -23,7 +23,7 @@
         <!-- Internal shared library, versioned independently of either platform. Consumers pin it
              by hand: paper-plugin's enderman-grief-control-messaging.version and fabric-mod's
              messaging_version - bump all three together. -->
-        <revision>1.1.0</revision>
+        <revision>1.2.0</revision>
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>

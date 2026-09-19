@@ -82,4 +82,4 @@ cd Enderman-Grief-Control/fabric-mod
 ./gradlew build
 ```
 
-The built jar lands at `build/libs/EndermanGriefControl-mc_1.21-fabric-1.1.0.jar`.
+The built jar lands at `build/libs/EndermanGriefControl-mc_1.21-fabric-1.2.0.jar`.

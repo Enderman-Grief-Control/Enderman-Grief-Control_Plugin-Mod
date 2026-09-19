@@ -23,14 +23,14 @@
     <!-- Use Java 21 for compilation -->
     <properties>
         <!-- Release version by default (plain `mvn package`). For a dev build with a
-             qualifier, override on the command line: mvn package -Drevision=1.1.0-SNAPSHOT -->
-        <revision>1.1.0</revision>
+             qualifier, override on the command line: mvn package -Drevision=1.2.0-SNAPSHOT -->
+        <revision>1.2.0</revision>
         <minecraft.version>1.21</minecraft.version>
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <!-- Versioned independently of <revision> - the messaging module doesn't participate in
              this plugin's release/SNAPSHOT cadence, it's a separately-installed shared library. -->
-        <enderman-grief-control-messaging.version>1.1.0</enderman-grief-control-messaging.version>
+        <enderman-grief-control-messaging.version>1.2.0</enderman-grief-control-messaging.version>
     </properties>
 
     <!-- PaperMC maven repo -->
