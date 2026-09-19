@@ -17,6 +17,8 @@ repositories {
 		name = 'TerraformersMC'
 		url = 'https://maven.terraformersmc.com/releases/'
 	}
+	mavenCentral() // net.kyori adventure artifacts, and enderman-grief-control-messaging's own deps
+	mavenLocal() // enderman-grief-control-messaging, installed locally via `mvn install`
 }
 
 dependencies {
@@ -55,6 +57,17 @@ dependencies {
 	// waiting on the next resolution pass.
 	modImplementation "net.fabricmc.fabric-api:fabric-entity-events-v1:${project.fabric_entity_events_v1_version}"
 	include "net.fabricmc.fabric-api:fabric-entity-events-v1:${project.fabric_entity_events_v1_version}"
+
+	// Bridges Adventure's Component API (already used natively by the Paper plugin) into Fabric's
+	// chat system, so both platforms build chat/announcement messages through the same shared
+	// enderman-grief-control-messaging module instead of hand-duplicating wording per platform.
+	// Pinned to 5.14.0, the release built specifically against Minecraft 1.21 (this project's
+	// exact minecraft_version - later releases target 1.21.1+ and aren't guaranteed compatible).
+	modImplementation "net.kyori:adventure-platform-fabric:${project.adventure_platform_fabric_version}"
+	include "net.kyori:adventure-platform-fabric:${project.adventure_platform_fabric_version}"
+
+	modImplementation "endermangriefcontrol:enderman-grief-control-messaging:${project.mod_version}"
+	include "endermangriefcontrol:enderman-grief-control-messaging:${project.mod_version}"
 }
 
 processResources {

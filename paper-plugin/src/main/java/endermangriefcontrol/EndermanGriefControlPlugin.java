@@ -4,15 +4,19 @@ import endermangriefcontrol.debug.TestModeLogger;
 import endermangriefcontrol.heldblock.HeldBlockHandling;
 import endermangriefcontrol.heldblock.HeldBlockMonitor;
 import endermangriefcontrol.listener.EndermanBlockListener;
+import endermangriefcontrol.message.PaperChatBroadcaster;
+import endermangriefcontrol.message.PaperMessageTemplateLoader;
+import endermangriefcontrol.messaging.DenialRateLimiter;
+import endermangriefcontrol.messaging.DenialType;
+import endermangriefcontrol.messaging.GriefControlMessages;
+import endermangriefcontrol.messaging.MessageTemplates;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Enderman;
-import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.Collections;
@@ -30,12 +34,17 @@ import java.util.stream.Collectors;
 public class EndermanGriefControlPlugin extends JavaPlugin {
 
     private HeldBlockMonitor heldBlockMonitor;
+    private final PaperChatBroadcaster chatBroadcaster = new PaperChatBroadcaster(this);
+    private MessageTemplates messageTemplates = MessageTemplates.DEFAULTS;
+    private DenialRateLimiter denialRateLimiter;
 
     @Override
     public void onEnable() {
         // Ensure default config.yml is saved to the plugin data folder
         // (plugins/EndermanGriefControl/config.yml) if it does not exist.
         saveDefaultConfig();
+        messageTemplates = PaperMessageTemplateLoader.load(getConfig());
+        denialRateLimiter = new DenialRateLimiter(getDenialRateLimitMillis());
         TestModeLogger.init(this);
 
         getLogger().info("EndermanGriefControl is enabling...");
@@ -91,6 +100,14 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
      */
     public boolean isRemovalsLoggingEnabled() {
         return getConfig().getBoolean("logging.removals", true);
+    }
+
+    /**
+     * Minimum time between denial chat announcements, per world and {@link DenialType}. Does not
+     * affect the console/server-log line, which always logs every individual denial.
+     */
+    private long getDenialRateLimitMillis() {
+        return getConfig().getLong("logging.denial-rate-limit-seconds", 10) * 1000L;
     }
 
     /**
@@ -168,22 +185,24 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
     /**
      * Logs that an enderman's block pickup or placement was denied - to the console (Bukkit's
      * logger already prefixes output with "[EndermanGriefControl]" and its own timestamp, so the
-     * message itself stays short) and, matching the Fabric mod's chat announcements, to every
-     * player currently in that world.
+     * message itself stays short), every single time. The chat announcement, matching the Fabric
+     * mod's, is rate-limited per world and {@link DenialType} instead - only fires when
+     * {@link #denialRateLimiter} says this world's denial type is due, reporting how many of that
+     * type happened there since the last chat message rather than one line per denial.
      */
-    public void logEndermanBlockCancel(Block block, String action) {
+    public void logEndermanBlockCancel(Block block, DenialType type) {
         String coords = block.getX() + ", " + block.getY() + ", " + block.getZ();
-        getLogger().info("Denied " + action + " at (" + coords + ").");
+        getLogger().info("Denied " + type.actionText() + " at (" + coords + ").");
 
-        broadcastToWorld(block.getWorld(), Component.text("[Enderman] ", NamedTextColor.LIGHT_PURPLE)
-                .append(Component.text("Denied " + action + " at ", NamedTextColor.GRAY))
-                .append(Component.text("(" + coords + ").", NamedTextColor.GREEN)));
+        denialRateLimiter.recordDenial(block.getWorld().getName(), type).ifPresent(count ->
+                chatBroadcaster.broadcastToWorld(block.getWorld(),
+                        GriefControlMessages.denied(messageTemplates, type, count)));
     }
 
     /**
      * Logs that an enderman is still stuck holding a block it can no longer place - deliberately
      * worded distinctly from {@link #logEndermanBlockCancel} so it doesn't blend into routine
-     * denial logging when read in a console/log file or in chat. Not gated by
+     * denial logging when read in the console/server log or in chat. Not gated by
      * {@link #isLoggingEnabled()} - choosing "alert" as the held-block handling mode is itself the
      * opt-in.
      */
@@ -192,14 +211,16 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
                 + ", " + enderman.getLocation().getBlockZ();
         getLogger().info("holding a block at (" + coords + ").");
 
-        broadcastToWorld(enderman.getWorld(), Component.text("[Enderman] ", NamedTextColor.GOLD)
-                .append(Component.text("holding a block at ", NamedTextColor.GRAY))
-                .append(Component.text("(" + coords + ").", NamedTextColor.GREEN)));
+        chatBroadcaster.broadcastToWorld(enderman.getWorld(),
+                GriefControlMessages.heldBlockAlert(messageTemplates, coords));
     }
 
     /**
-     * Logs that a stuck holder was auto-cleared. Gated by {@link #isRemovalsLoggingEnabled()} -
-     * separate from denial logging, and on by default.
+     * Logs that a stuck holder was auto-cleared - console/server-log only, every individual clear,
+     * regardless of how many endermen a single resolution pass resolves. Gated by
+     * {@link #isRemovalsLoggingEnabled()} - separate from denial logging, and on by default. The
+     * chat announcement is handled separately, once per affected world per pass, by
+     * {@link #announceHeldBlockClearedBatch(World, int)}.
      */
     public void logHeldBlockCleared(Enderman enderman) {
         if (!isRemovalsLoggingEnabled()) {
@@ -209,22 +230,20 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
         String coords = enderman.getLocation().getBlockX() + ", " + enderman.getLocation().getBlockY()
                 + ", " + enderman.getLocation().getBlockZ();
         getLogger().info("cleared a holder at (" + coords + ").");
-
-        broadcastToWorld(enderman.getWorld(), Component.text("[Enderman] ", NamedTextColor.AQUA)
-                .append(Component.text("holding cleared at ", NamedTextColor.GRAY))
-                .append(Component.text("(" + coords + ").", NamedTextColor.GREEN)));
     }
 
     /**
-     * Sends a chat message to every player currently in the given world - grief events are
-     * inherently per-world here (unlike the Fabric mod, which has no multi-world concept and just
-     * broadcasts server-wide), so a denial/alert/clear in one world shouldn't spam players in
-     * another.
+     * Reports how many stuck holders were auto-cleared in {@code world} during a single resolution
+     * pass, as one chat message instead of one per enderman. Gated by
+     * {@link #isRemovalsLoggingEnabled()}, same as the per-event console line in
+     * {@link #logHeldBlockCleared(Enderman)}.
      */
-    private void broadcastToWorld(World world, Component message) {
-        for (Player player : world.getPlayers()) {
-            player.sendMessage(message);
+    public void announceHeldBlockClearedBatch(World world, int count) {
+        if (!isRemovalsLoggingEnabled()) {
+            return;
         }
+
+        chatBroadcaster.broadcastToWorld(world, GriefControlMessages.heldBlockCleared(messageTemplates, count));
     }
 
     private static final List<String> SUBCOMMANDS = List.of("reload", "status", "toggle", "held-block", "set");
@@ -244,12 +263,12 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
         }
 
         if (!sender.hasPermission("endermangriefcontrol.admin")) {
-            sender.sendMessage("You do not have permission to use this command.");
+            sender.sendMessage(Component.text("You do not have permission to use this command."));
             return true;
         }
 
         if (args.length == 0) {
-            sender.sendMessage("Usage: /enderman <reload|status|toggle|held-block|set>");
+            sender.sendMessage(Component.text("Usage: /enderman <reload|status|toggle|held-block|set>"));
             return true;
         }
 
@@ -259,79 +278,81 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
             case "toggle" -> handleToggle(sender, args);
             case "held-block" -> handleHeldBlock(sender, args);
             case "set" -> handleSet(sender, args);
-            default -> sender.sendMessage("Unknown subcommand. Usage: /enderman <reload|status|toggle|held-block|set>");
+            default -> sender.sendMessage(Component.text("Unknown subcommand. Usage: /enderman <reload|status|toggle|held-block|set>"));
         }
         return true;
     }
 
     private void handleReload(CommandSender sender) {
         reloadConfig();
+        messageTemplates = PaperMessageTemplateLoader.load(getConfig());
+        denialRateLimiter.setCooldownMillis(getDenialRateLimitMillis());
         heldBlockMonitor.armPendingDiscovery(); // Config may have re-enabled worlds by hand-edit.
-        sender.sendMessage("EndermanGriefControl configuration reloaded.");
+        sender.sendMessage(Component.text("EndermanGriefControl configuration reloaded."));
         getLogger().info("Configuration reloaded by " + sender.getName());
     }
 
     private void handleStatus(CommandSender sender, String[] args) {
         if (args.length >= 2) {
             String world = args[1];
-            sender.sendMessage("World '" + world + "': " + (isWorldEnabled(world) ? "enabled" : "disabled")
-                    + ", held-block: " + getHeldBlockHandling(world).toConfigValue());
+            sender.sendMessage(Component.text("World '" + world + "': " + (isWorldEnabled(world) ? "enabled" : "disabled")
+                    + ", held-block: " + getHeldBlockHandling(world).toConfigValue()));
             return;
         }
 
         boolean defaultEnabled = getConfig().getBoolean("default-enabled", true);
-        sender.sendMessage("Default: " + (defaultEnabled ? "enabled" : "disabled")
+        sender.sendMessage(Component.text("Default: " + (defaultEnabled ? "enabled" : "disabled")
                 + ", log denials: " + (isLoggingEnabled() ? "enabled" : "disabled")
                 + ", log removals: " + (isRemovalsLoggingEnabled() ? "enabled" : "disabled")
-                + ", held-block: " + getDefaultHeldBlockHandling().toConfigValue());
+                + ", held-block: " + getDefaultHeldBlockHandling().toConfigValue()));
 
         ConfigurationSection worldsSection = getConfig().getConfigurationSection("worlds");
         if (worldsSection != null) {
             for (String world : worldsSection.getKeys(false)) {
-                sender.sendMessage("  " + world + ": " + (worldsSection.getBoolean(world) ? "enabled" : "disabled"));
+                sender.sendMessage(Component.text("  " + world + ": " + (worldsSection.getBoolean(world) ? "enabled" : "disabled")));
             }
         }
 
         ConfigurationSection heldBlockWorldsSection = getConfig().getConfigurationSection("held-block-worlds");
         if (heldBlockWorldsSection != null) {
             for (String world : heldBlockWorldsSection.getKeys(false)) {
-                sender.sendMessage("  " + world + " held-block: " + getHeldBlockHandling(world).toConfigValue());
+                sender.sendMessage(Component.text("  " + world + " held-block: " + getHeldBlockHandling(world).toConfigValue()));
             }
         }
     }
 
     private void handleToggle(CommandSender sender, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage("Usage: /enderman toggle <world> [true|false]");
+            sender.sendMessage(Component.text("Usage: /enderman toggle <world> [true|false]"));
             return;
         }
 
         String world = args[1];
         boolean newValue = args.length >= 3 ? Boolean.parseBoolean(args[2]) : !isWorldEnabled(world);
         setWorldEnabled(world, newValue);
-        sender.sendMessage("World '" + world + "' is now " + (newValue ? "enabled" : "disabled") + ".");
+        sender.sendMessage(Component.text("World '" + world + "' is now " + (newValue ? "enabled" : "disabled") + "."));
     }
 
     private void handleHeldBlock(CommandSender sender, String[] args) {
         if (args.length < 3) {
-            sender.sendMessage("Usage: /enderman held-block <world> <auto-clear|alert|off>");
+            sender.sendMessage(Component.text("Usage: /enderman held-block <world> <auto-clear|alert|off>"));
             return;
         }
 
         String world = args[1];
         HeldBlockHandling mode = HeldBlockHandling.fromConfig(args[2], null);
         if (mode == null) {
-            sender.sendMessage("Usage: /enderman held-block <world> <auto-clear|alert|off>");
+            sender.sendMessage(Component.text("Usage: /enderman held-block <world> <auto-clear|alert|off>"));
             return;
         }
 
         setWorldHeldBlockHandling(world, mode);
-        sender.sendMessage("Held-block handling for world '" + world + "' is now " + mode.toConfigValue() + ".");
+        sender.sendMessage(Component.text("Held-block handling for world '" + world + "' is now " + mode.toConfigValue() + "."));
     }
 
     private void handleSet(CommandSender sender, String[] args) {
         if (args.length < 3) {
-            sender.sendMessage("Usage: /enderman set <default|log-denials|log-removals|held-block-default> <value>");
+            sender.sendMessage(Component.text("Usage: /enderman set <default|log-denials|log-removals|held-block-default> <value>"));
             return;
         }
 
@@ -339,30 +360,30 @@ public class EndermanGriefControlPlugin extends JavaPlugin {
             case "default" -> {
                 boolean value = Boolean.parseBoolean(args[2]);
                 setDefaultEnabled(value);
-                sender.sendMessage("Default is now " + (value ? "enabled" : "disabled") + ".");
+                sender.sendMessage(Component.text("Default is now " + (value ? "enabled" : "disabled") + "."));
             }
             case "log-denials" -> {
                 boolean value = Boolean.parseBoolean(args[2]);
                 getConfig().set("logging.enabled", value);
                 saveConfig();
-                sender.sendMessage("Log denials is now " + (value ? "enabled" : "disabled") + ".");
+                sender.sendMessage(Component.text("Log denials is now " + (value ? "enabled" : "disabled") + "."));
             }
             case "log-removals" -> {
                 boolean value = Boolean.parseBoolean(args[2]);
                 getConfig().set("logging.removals", value);
                 saveConfig();
-                sender.sendMessage("Log removals is now " + (value ? "enabled" : "disabled") + ".");
+                sender.sendMessage(Component.text("Log removals is now " + (value ? "enabled" : "disabled") + "."));
             }
             case "held-block-default" -> {
                 HeldBlockHandling mode = HeldBlockHandling.fromConfig(args[2], null);
                 if (mode == null) {
-                    sender.sendMessage("Usage: /enderman set held-block-default <auto-clear|alert|off>");
+                    sender.sendMessage(Component.text("Usage: /enderman set held-block-default <auto-clear|alert|off>"));
                     return;
                 }
                 setDefaultHeldBlockHandling(mode);
-                sender.sendMessage("Default held-block handling is now " + mode.toConfigValue() + ".");
+                sender.sendMessage(Component.text("Default held-block handling is now " + mode.toConfigValue() + "."));
             }
-            default -> sender.sendMessage("Usage: /enderman set <default|log-denials|log-removals|held-block-default> <value>");
+            default -> sender.sendMessage(Component.text("Usage: /enderman set <default|log-denials|log-removals|held-block-default> <value>"));
         }
     }
 

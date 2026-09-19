@@ -41,3 +41,36 @@ logging:
   # is a one-time confirmation the actual problem got fixed, not a repeating denial, so this
   # defaults to on even though denial logging defaults off.
   removals: true
+  # Minimum seconds between denial chat announcements, per world and denial type (placement and
+  # pickup are throttled independently). Denials that happen faster than this are still counted
+  # and rolled into the next chat message ("Denied placement x4.") rather than dropped silently. Does not
+  # affect the console/server-log line, which still logs every individual denial. Set to 0 to
+  # announce every single denial in chat (the old behavior).
+  denial-rate-limit-seconds: 10
+
+# Chat announcement wording/colors. Shared in shape with the Fabric mod's equivalent config, and
+# tolerant of missing/misspelled entries - anything absent or unrecognized falls back to its
+# default shown below rather than failing to load. Colors are Minecraft's standard 16 names
+# (e.g. dark_purple, gold, aqua) in lowercase.
+messages:
+  prefix: "[Enderman] "
+  denied-placement:
+    prefix-color: dark_purple
+    body: "Denied placement"
+    body-color: gray
+    coords-color: dark_green
+  denied-pickup:
+    prefix-color: light_purple
+    body: "Denied pickup"
+    body-color: gray
+    coords-color: dark_green
+  held-block-alert:
+    prefix-color: red
+    body: "holding a block at "
+    body-color: gray
+    coords-color: green
+  held-block-cleared:
+    prefix-color: aqua
+    body: "holding block cleared"
+    body-color: gray
+    coords-color: dark_green

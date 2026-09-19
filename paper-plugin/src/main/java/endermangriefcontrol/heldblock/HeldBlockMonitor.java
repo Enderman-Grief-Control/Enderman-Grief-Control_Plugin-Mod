@@ -11,8 +11,10 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -144,6 +146,7 @@ public final class HeldBlockMonitor implements Listener {
         int alerted = 0;
         int leftUntouched = 0;
         int skippedDisabled = 0;
+        Map<World, Integer> clearedPerWorld = new HashMap<>();
 
         Iterator<UUID> iterator = knownHolders.iterator();
         while (iterator.hasNext()) {
@@ -169,11 +172,16 @@ public final class HeldBlockMonitor implements Listener {
                 case AUTO_CLEAR -> {
                     enderman.setCarriedBlock(null);
                     plugin.logHeldBlockCleared(enderman);
+                    clearedPerWorld.merge(enderman.getWorld(), 1, Integer::sum);
                     iterator.remove();
                     resolved++;
                 }
                 case OFF -> leftUntouched++; // Leave it tracked and untouched; picked up again if the mode later changes.
             }
+        }
+
+        for (Map.Entry<World, Integer> entry : clearedPerWorld.entrySet()) {
+            plugin.announceHeldBlockClearedBatch(entry.getKey(), entry.getValue());
         }
 
         TestModeLogger.log("Resolution pass ran: " + resolved + " resolved, " + alerted + " alerted, "

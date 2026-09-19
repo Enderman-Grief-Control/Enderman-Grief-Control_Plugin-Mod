@@ -157,13 +157,13 @@ public final class EndermanGriefControlConfigScreen extends Screen {
 
     private static Tooltip logRemovalsTooltip(boolean logRemovals) {
         return Tooltip.create(Component.literal(logRemovals
-                ? "Announces when a stuck holder is auto-cleared, in chat and the log file."
+                ? "Announces when a stuck holder is auto-cleared, in chat and the server log."
                 : "A stuck holder being auto-cleared is not announced or logged."));
     }
 
     private static Tooltip logDeniedTooltip(boolean loggingEnabled) {
         return Tooltip.create(Component.literal(loggingEnabled
-                ? "Announces each prevented pickup/placement attempt in chat and the log file."
+                ? "Logs every prevented pickup/placement attempt; chat announcements are rate-limited and batched."
                 : "Prevented pickup/placement attempts are not announced or logged."));
     }
 
