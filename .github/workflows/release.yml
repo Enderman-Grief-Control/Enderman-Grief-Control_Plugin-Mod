@@ -338,9 +338,9 @@ jobs:
       CF_PROJECT_ID: ${{ vars.CURSEFORGE_PAPER_PROJECT_ID }}
       # Bukkit Plugins projects use their own host; Minecraft mods use minecraft.curseforge.com.
       CF_API: https://dev.bukkit.org
-      # Bukkit's versions endpoint can contain duplicate names across version groups. This is the
-      # Minecraft 1.21.x game-version type used by the current GAME_VERSIONS list.
-      CF_GAME_VERSION_TYPE_ID: "77784"
+      # Bukkit's versions endpoint can contain duplicate names across version groups. Bukkit
+      # Plugins uploads must use the Bukkit dependency bucket, not the Minecraft Mods 1.21.x bucket.
+      CF_GAME_VERSION_TYPE_ID: "615"
 
     steps:
       - uses: actions/download-artifact@v4
