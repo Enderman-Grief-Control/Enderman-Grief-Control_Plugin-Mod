@@ -123,19 +123,11 @@ public final class EndermanGriefControlConfigScreen extends Screen {
         logDeniedButton.active = pendingEnabled;
     }
 
-    /**
-     * Applies the pending choices in Save & Quit order. Each setter saves and may act on the
-     * monitor before the later choices are applied.
-     */
+    /** Captures the staged choices before the screen closes or its widgets change again. */
     private void applyPendingChanges() {
-        EndermanGriefControlMod.setEnabled(pendingEnabled);
-
-        EndermanGriefControlConfig config = EndermanGriefControlMod.getConfig();
-        config.logRemovals = pendingLogRemovals;
-        config.loggingEnabled = pendingLoggingEnabled;
-        config.save();
-
-        EndermanGriefControlMod.setHeldBlockHandling(pendingHeldBlockHandling);
+        EndermanGriefControlMod.Settings settings = new EndermanGriefControlMod.Settings(
+                pendingEnabled, pendingHeldBlockHandling, pendingLogRemovals, pendingLoggingEnabled);
+        EndermanGriefControlMod.saveModMenuSettings(this.minecraft.getSingleplayerServer(), settings);
     }
 
     private static Component displayName(HeldBlockHandling handling) {

@@ -2,7 +2,9 @@ package endermangriefcontrol.fabric;
 
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.kyori.adventure.text.Component;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.monster.EnderMan;
 import endermangriefcontrol.fabric.command.EndermanCommand;
@@ -17,7 +19,11 @@ import endermangriefcontrol.messaging.MessageTemplates;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
+import java.util.WeakHashMap;
+import java.util.concurrent.RejectedExecutionException;
 
 public final class EndermanGriefControlMod implements ModInitializer {
 
@@ -29,6 +35,22 @@ public final class EndermanGriefControlMod implements ModInitializer {
     private static DenialRateLimiter denialRateLimiter;
     private static final HeldBlockMonitor HELD_BLOCK_MONITOR = new HeldBlockMonitor();
     private static final FabricChatBroadcaster CHAT_BROADCASTER = new FabricChatBroadcaster();
+    private static final Object SETTINGS_SAVE_LOCK = new Object();
+    private static final WeakHashMap<MinecraftServer, PendingSettingsSaves> PENDING_SETTINGS_SAVES =
+            new WeakHashMap<>();
+
+    private static final class PendingSettingsSaves {
+        private boolean stopping;
+        private final List<PendingSettingsSave> saves = new ArrayList<>();
+    }
+
+    private static final class PendingSettingsSave {
+        private final Settings settings;
+
+        private PendingSettingsSave(Settings settings) {
+            this.settings = settings;
+        }
+    }
 
     @Override
     public void onInitialize() {
@@ -38,6 +60,7 @@ public final class EndermanGriefControlMod implements ModInitializer {
         TestModeLogger.init();
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
                 EndermanCommand.register(dispatcher));
+        ServerLifecycleEvents.SERVER_STOPPING.register(EndermanGriefControlMod::onServerStopping);
         HELD_BLOCK_MONITOR.register();
         CHAT_BROADCASTER.register();
         LOGGER.info("EndermanGriefControl has been initialized.");
@@ -72,6 +95,69 @@ public final class EndermanGriefControlMod implements ModInitializer {
                            boolean logRemovals, boolean loggingEnabled) {
         public Settings {
             Objects.requireNonNull(heldBlockHandling, "heldBlockHandling");
+        }
+    }
+
+    /**
+     * Sends a Mod Menu save to its captured integrated server. The screen calls this on the client
+     * thread; the queued commit and any monitor work run together on the server thread. A title-menu
+     * save, or a save whose server has begun stopping, changes the shared config without world work.
+     */
+    public static void saveModMenuSettings(MinecraftServer server, Settings settings) {
+        Objects.requireNonNull(settings, "settings");
+        if (server == null) {
+            synchronized (SETTINGS_SAVE_LOCK) {
+                applySettingsWithoutMonitor(settings);
+            }
+            return;
+        }
+
+        PendingSettingsSave save = new PendingSettingsSave(settings);
+        synchronized (SETTINGS_SAVE_LOCK) {
+            PendingSettingsSaves session = PENDING_SETTINGS_SAVES.computeIfAbsent(
+                    server, ignored -> new PendingSettingsSaves());
+            if (session.stopping || !server.isRunning()) {
+                applySettingsWithoutMonitor(settings);
+                return;
+            }
+            session.saves.add(save);
+        }
+
+        try {
+            server.execute(() -> finishPendingSettingsSave(server, save));
+        } catch (RejectedExecutionException e) {
+            synchronized (SETTINGS_SAVE_LOCK) {
+                PendingSettingsSaves session = PENDING_SETTINGS_SAVES.get(server);
+                if (session != null && session.saves.remove(save)) {
+                    applySettingsWithoutMonitor(save.settings);
+                }
+            }
+        }
+    }
+
+    private static void finishPendingSettingsSave(MinecraftServer server, PendingSettingsSave save) {
+        synchronized (SETTINGS_SAVE_LOCK) {
+            PendingSettingsSaves session = PENDING_SETTINGS_SAVES.get(server);
+            if (session == null || !session.saves.remove(save)) {
+                return; // The stopping callback already committed this snapshot.
+            }
+            if (session.stopping || !server.isRunning()) {
+                applySettingsWithoutMonitor(save.settings);
+            } else {
+                applySettings(save.settings);
+            }
+        }
+    }
+
+    private static void onServerStopping(MinecraftServer server) {
+        synchronized (SETTINGS_SAVE_LOCK) {
+            PendingSettingsSaves session = PENDING_SETTINGS_SAVES.computeIfAbsent(
+                    server, ignored -> new PendingSettingsSaves());
+            session.stopping = true;
+            for (PendingSettingsSave save : session.saves) {
+                applySettingsWithoutMonitor(save.settings);
+            }
+            session.saves.clear();
         }
     }
 
