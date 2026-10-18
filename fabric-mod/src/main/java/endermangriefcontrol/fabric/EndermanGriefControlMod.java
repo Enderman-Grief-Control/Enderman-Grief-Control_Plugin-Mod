@@ -2,7 +2,9 @@ package endermangriefcontrol.fabric;
 
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.kyori.adventure.text.Component;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.monster.EnderMan;
 import endermangriefcontrol.fabric.command.EndermanCommand;
@@ -17,6 +19,12 @@ import endermangriefcontrol.messaging.MessageTemplates;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.WeakHashMap;
+import java.util.concurrent.RejectedExecutionException;
+
 public final class EndermanGriefControlMod implements ModInitializer {
 
     public static final String MOD_ID = "no-enderman-grief";
@@ -27,6 +35,22 @@ public final class EndermanGriefControlMod implements ModInitializer {
     private static DenialRateLimiter denialRateLimiter;
     private static final HeldBlockMonitor HELD_BLOCK_MONITOR = new HeldBlockMonitor();
     private static final FabricChatBroadcaster CHAT_BROADCASTER = new FabricChatBroadcaster();
+    private static final Object SETTINGS_SAVE_LOCK = new Object();
+    private static final WeakHashMap<MinecraftServer, PendingSettingsSaves> PENDING_SETTINGS_SAVES =
+            new WeakHashMap<>();
+
+    private static final class PendingSettingsSaves {
+        private boolean stopping;
+        private final List<PendingSettingsSave> saves = new ArrayList<>();
+    }
+
+    private static final class PendingSettingsSave {
+        private final Settings settings;
+
+        private PendingSettingsSave(Settings settings) {
+            this.settings = settings;
+        }
+    }
 
     @Override
     public void onInitialize() {
@@ -36,6 +60,7 @@ public final class EndermanGriefControlMod implements ModInitializer {
         TestModeLogger.init();
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
                 EndermanCommand.register(dispatcher));
+        ServerLifecycleEvents.SERVER_STOPPING.register(EndermanGriefControlMod::onServerStopping);
         HELD_BLOCK_MONITOR.register();
         CHAT_BROADCASTER.register();
         LOGGER.info("EndermanGriefControl has been initialized.");
@@ -65,10 +90,115 @@ public final class EndermanGriefControlMod implements ModInitializer {
         return HELD_BLOCK_MONITOR;
     }
 
+    /** An immutable snapshot of the four choices staged by Mod Menu. */
+    public record Settings(boolean enabled, HeldBlockHandling heldBlockHandling,
+                           boolean logRemovals, boolean loggingEnabled) {
+        public Settings {
+            Objects.requireNonNull(heldBlockHandling, "heldBlockHandling");
+        }
+    }
+
     /**
-     * The single place "enabled" actually gets changed - both the command and the Mod Menu screen
-     * call this rather than each mutating config.enabled themselves, so the arm-on-re-enable side
-     * effect only has to be written once and can't be forgotten at a second call site.
+     * Sends a Mod Menu save to its captured integrated server. The screen calls this on the client
+     * thread; the queued commit and any monitor work run together on the server thread. A title-menu
+     * save, or a save whose server has begun stopping, changes the shared config without world work.
+     */
+    public static void saveModMenuSettings(MinecraftServer server, Settings settings) {
+        Objects.requireNonNull(settings, "settings");
+        if (server == null) {
+            synchronized (SETTINGS_SAVE_LOCK) {
+                applySettingsWithoutMonitor(settings);
+            }
+            return;
+        }
+
+        PendingSettingsSave save = new PendingSettingsSave(settings);
+        synchronized (SETTINGS_SAVE_LOCK) {
+            PendingSettingsSaves session = PENDING_SETTINGS_SAVES.computeIfAbsent(
+                    server, ignored -> new PendingSettingsSaves());
+            if (session.stopping || !server.isRunning()) {
+                applySettingsWithoutMonitor(settings);
+                return;
+            }
+            session.saves.add(save);
+        }
+
+        try {
+            server.execute(() -> finishPendingSettingsSave(server, save));
+        } catch (RejectedExecutionException e) {
+            synchronized (SETTINGS_SAVE_LOCK) {
+                PendingSettingsSaves session = PENDING_SETTINGS_SAVES.get(server);
+                if (session != null && session.saves.remove(save)) {
+                    applySettingsWithoutMonitor(save.settings);
+                }
+            }
+        }
+    }
+
+    private static void finishPendingSettingsSave(MinecraftServer server, PendingSettingsSave save) {
+        synchronized (SETTINGS_SAVE_LOCK) {
+            PendingSettingsSaves session = PENDING_SETTINGS_SAVES.get(server);
+            if (session == null || !session.saves.remove(save)) {
+                return; // The stopping callback already committed this snapshot.
+            }
+            if (session.stopping || !server.isRunning()) {
+                applySettingsWithoutMonitor(save.settings);
+            } else {
+                applySettings(save.settings);
+            }
+        }
+    }
+
+    private static void onServerStopping(MinecraftServer server) {
+        synchronized (SETTINGS_SAVE_LOCK) {
+            PendingSettingsSaves session = PENDING_SETTINGS_SAVES.computeIfAbsent(
+                    server, ignored -> new PendingSettingsSaves());
+            session.stopping = true;
+            for (PendingSettingsSave save : session.saves) {
+                applySettingsWithoutMonitor(save.settings);
+            }
+            session.saves.clear();
+        }
+    }
+
+    /**
+     * Commits a Mod Menu selection with live monitor actions. The caller must run this on the
+     * active server thread; all final values are installed and saved before monitor work starts.
+     */
+    public static void applySettings(Settings settings) {
+        commitSettings(settings, true);
+    }
+
+    /** Commits a selection without monitor work when no active server can safely handle it. */
+    public static void applySettingsWithoutMonitor(Settings settings) {
+        commitSettings(settings, false);
+    }
+
+    private static void commitSettings(Settings settings, boolean runMonitorAction) {
+        Objects.requireNonNull(settings, "settings");
+        boolean wasEnabled = config.enabled;
+        HeldBlockHandling previousHandling = HeldBlockHandling.fromConfig(
+                config.heldBlockHandling, HeldBlockHandling.AUTO_CLEAR);
+
+        config.enabled = settings.enabled();
+        config.heldBlockHandling = settings.heldBlockHandling().toConfigValue();
+        config.logRemovals = settings.logRemovals();
+        config.loggingEnabled = settings.loggingEnabled();
+        config.save();
+
+        if (!runMonitorAction || !settings.enabled()) {
+            return;
+        }
+        if (!wasEnabled) {
+            HELD_BLOCK_MONITOR.armPendingDiscovery();
+        } else if (previousHandling != settings.heldBlockHandling()) {
+            HELD_BLOCK_MONITOR.runResolutionPass();
+        }
+    }
+
+    /**
+     * Applies a command's enabled change immediately. Mod Menu uses {@link #applySettings(Settings)}
+     * so its other final choices are visible before discovery starts.
      */
     public static void setEnabled(boolean value) {
         boolean wasEnabled = config.enabled;
@@ -80,9 +210,8 @@ public final class EndermanGriefControlMod implements ModInitializer {
     }
 
     /**
-     * The single place held-block handling actually gets changed - see {@link #setEnabled}.
-     * Re-resolves immediately so the new mode applies to already-tracked holders right away,
-     * instead of waiting up to ~2 minutes for the next periodic resolution pass.
+     * Applies a command's carrier-mode change immediately, including a resolution pass. Mod Menu
+     * uses {@link #applySettings(Settings)} to apply its whole selection first.
      */
     public static void setHeldBlockHandling(HeldBlockHandling mode) {
         config.heldBlockHandling = mode.toConfigValue();
