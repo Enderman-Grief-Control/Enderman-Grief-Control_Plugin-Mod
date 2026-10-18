@@ -22,6 +22,21 @@ jobs:
       - name: Check messaging version pins
         run: python3 scripts/check_messaging_version_pins.py
 
+  compatibility-runner:
+    name: Compatibility runner self-checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Offline only: manifest lock validation and the runner's own unit tests. Real server rows
+      # need downloads and minutes of runtime and are run deliberately, not on every push.
+      - name: Validate compatibility manifest
+        run: python3 scripts/compatibility/run.py --validate-only
+
+      - name: Runner unit tests
+        run: python3 -m unittest discover -s scripts/compatibility/tests -t scripts/compatibility -v
+
   paper:
     name: Paper plugin
     needs: messaging-version-pins

@@ -35,6 +35,12 @@ Thumbs.db
 .env
 local/
 AGENTS.md
+.claude/
 
 # === Local test servers (real Paper/Fabric server installs for manual QA) ===
+# Also holds the compatibility runner's download cache and per-run workspaces/results.
 /test-servers/
+
+# === Compatibility runner tooling ===
+node_modules/
+__pycache__/

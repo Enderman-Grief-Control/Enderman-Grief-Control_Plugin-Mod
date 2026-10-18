@@ -1,0 +1,14 @@
+{
+  "name": "egc-compat-bot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mineflayer protocol client used by the Enderman Grief Control compatibility runner.",
+  "main": "bot.js",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "mineflayer": "4.39.0"
+  }
+}

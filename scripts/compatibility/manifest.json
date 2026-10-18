@@ -1,0 +1,971 @@
+{
+  "schema_version": 1,
+  "user_agent": "EndermanGriefControl-compat-runner/1 (+https://github.com/Enderman-Grief-Control/Enderman-Grief-Control_Plugin-Mod)",
+  "adapters": {
+    "camel-case-gamerules": {
+      "gamerules": {
+        "mob_griefing": "mobGriefing",
+        "mob_spawning": "doMobSpawning",
+        "daylight_cycle": "doDaylightCycle",
+        "random_tick_speed": "randomTickSpeed"
+      }
+    },
+    "snake-case-gamerules": {
+      "gamerules": {
+        "mob_griefing": "mob_griefing",
+        "mob_spawning": "spawn_mobs",
+        "daylight_cycle": "advance_time",
+        "random_tick_speed": "random_tick_speed"
+      }
+    }
+  },
+  "artifacts": {
+    "paper-1.2.0": {
+      "platform": "paper",
+      "kind": "published",
+      "release_tag": "paper-v1.2.0",
+      "source_commit": "9ba1c5a7b9d7ec551df255e5e4f868a05c18a92b",
+      "filename": "EndermanGriefControl-mc_1.21-paper-1.2.0.jar",
+      "url": "https://github.com/Enderman-Grief-Control/Enderman-Grief-Control_Plugin-Mod/releases/download/paper-v1.2.0/EndermanGriefControl-mc_1.21-paper-1.2.0.jar",
+      "size": 37738,
+      "sha256": "74ef37affae3fd2acb50bf5fd8c74287b522d8d0a420d98a1caf229318e9d0ce",
+      "descriptor": {
+        "name": "EndermanGriefControl",
+        "version": "1.2.0",
+        "api-version": "1.21"
+      },
+      "test_mode": "false"
+    },
+    "fabric-1.2.0": {
+      "platform": "fabric",
+      "kind": "published",
+      "release_tag": "fabric-v1.2.0",
+      "source_commit": "9ba1c5a7b9d7ec551df255e5e4f868a05c18a92b",
+      "filename": "EndermanGriefControl-mc_1.21-fabric-1.2.0.jar",
+      "url": "https://github.com/Enderman-Grief-Control/Enderman-Grief-Control_Plugin-Mod/releases/download/fabric-v1.2.0/EndermanGriefControl-mc_1.21-fabric-1.2.0.jar",
+      "size": 1107840,
+      "sha256": "2974fcf6d6c862090303f0f27ca933ad52d0b6bd369a97e089cb21b95b9e05d2",
+      "descriptor": {
+        "id": "no-enderman-grief",
+        "version": "1.2.0"
+      },
+      "test_mode": "false"
+    }
+  },
+  "targets": {
+    "paper/server/1.21": {
+      "artifact_id": "paper-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "client_protocol": "1.21",
+      "paper_build": 130,
+      "channel": "STABLE",
+      "build_api_url": "https://fill.papermc.io/v3/projects/paper/versions/1.21/builds/130",
+      "download_url": "https://fill-data.papermc.io/v1/objects/ab9bb1afc3cea6978a0c03ce8448aa654fe8a9c4dddf341e7cbda1b0edaa73f5/paper-1.21-130.jar",
+      "size": 49049109,
+      "sha256": "ab9bb1afc3cea6978a0c03ce8448aa654fe8a9c4dddf341e7cbda1b0edaa73f5",
+      "minecraft_server_url": "https://piston-data.mojang.com/v1/objects/450698d1863ab5180c25d7c804ef0fe6369dd1ba/server.jar",
+      "minecraft_server_sha1": "450698d1863ab5180c25d7c804ef0fe6369dd1ba",
+      "minecraft_server_size": 51623779
+    },
+    "paper/server/1.21.1": {
+      "artifact_id": "paper-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "client_protocol": "1.21.1",
+      "paper_build": 133,
+      "channel": "STABLE",
+      "build_api_url": "https://fill.papermc.io/v3/projects/paper/versions/1.21.1/builds/133",
+      "download_url": "https://fill-data.papermc.io/v1/objects/39bd8c00b9e18de91dcabd3cc3dcfa5328685a53b7187a2f63280c22e2d287b9/paper-1.21.1-133.jar",
+      "size": 49394394,
+      "sha256": "39bd8c00b9e18de91dcabd3cc3dcfa5328685a53b7187a2f63280c22e2d287b9",
+      "minecraft_server_url": "https://piston-data.mojang.com/v1/objects/59353fb40c36d304f2035d51e7d6e6baa98dc05c/server.jar",
+      "minecraft_server_sha1": "59353fb40c36d304f2035d51e7d6e6baa98dc05c",
+      "minecraft_server_size": 51627615
+    },
+    "paper/server/1.21.2": {
+      "artifact_id": "paper-1.2.0",
+      "server_minecraft": "1.21.3",
+      "server_basis": "PaperMC publishes no 1.21.2 server; Minecraft 1.21.2 players join Paper 1.21.3, the same-protocol (768) hotfix, so this row tests the plugin on Paper 1.21.3 with a protocol 768 client.",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "client_protocol": "1.21.3",
+      "paper_build": 83,
+      "channel": "STABLE",
+      "build_api_url": "https://fill.papermc.io/v3/projects/paper/versions/1.21.3/builds/83",
+      "download_url": "https://fill-data.papermc.io/v1/objects/87e973e1d338e869e7fdbc4b8fadc1579d7bb0246a0e0cf6e5700ace6c8bc17e/paper-1.21.3-83.jar",
+      "size": 50931273,
+      "sha256": "87e973e1d338e869e7fdbc4b8fadc1579d7bb0246a0e0cf6e5700ace6c8bc17e",
+      "minecraft_server_url": "https://piston-data.mojang.com/v1/objects/45810d238246d90e811d896f87b14695b7fb6839/server.jar",
+      "minecraft_server_sha1": "45810d238246d90e811d896f87b14695b7fb6839",
+      "minecraft_server_size": 56122038
+    },
+    "paper/server/1.21.3": {
+      "artifact_id": "paper-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "client_protocol": "1.21.3",
+      "paper_build": 83,
+      "channel": "STABLE",
+      "build_api_url": "https://fill.papermc.io/v3/projects/paper/versions/1.21.3/builds/83",
+      "download_url": "https://fill-data.papermc.io/v1/objects/87e973e1d338e869e7fdbc4b8fadc1579d7bb0246a0e0cf6e5700ace6c8bc17e/paper-1.21.3-83.jar",
+      "size": 50931273,
+      "sha256": "87e973e1d338e869e7fdbc4b8fadc1579d7bb0246a0e0cf6e5700ace6c8bc17e",
+      "minecraft_server_url": "https://piston-data.mojang.com/v1/objects/45810d238246d90e811d896f87b14695b7fb6839/server.jar",
+      "minecraft_server_sha1": "45810d238246d90e811d896f87b14695b7fb6839",
+      "minecraft_server_size": 56122038
+    },
+    "paper/server/1.21.4": {
+      "artifact_id": "paper-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "client_protocol": "1.21.4",
+      "paper_build": 232,
+      "channel": "STABLE",
+      "build_api_url": "https://fill.papermc.io/v3/projects/paper/versions/1.21.4/builds/232",
+      "download_url": "https://fill-data.papermc.io/v1/objects/5ee4f542f628a14c644410b08c94ea42e772ef4d29fe92973636b6813d4eaffc/paper-1.21.4-232.jar",
+      "size": 51437498,
+      "sha256": "5ee4f542f628a14c644410b08c94ea42e772ef4d29fe92973636b6813d4eaffc",
+      "minecraft_server_url": "https://piston-data.mojang.com/v1/objects/4707d00eb834b446575d89a61a11b5d548d8c001/server.jar",
+      "minecraft_server_sha1": "4707d00eb834b446575d89a61a11b5d548d8c001",
+      "minecraft_server_size": 56880250
+    },
+    "paper/server/1.21.5": {
+      "artifact_id": "paper-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "client_protocol": "1.21.5",
+      "paper_build": 114,
+      "channel": "ALPHA",
+      "build_api_url": "https://fill.papermc.io/v3/projects/paper/versions/1.21.5/builds/114",
+      "download_url": "https://fill-data.papermc.io/v1/objects/2ae6ae22adf417699746e0f89fc2ef6cb6ee050a5f6608cee58f0535d60b509e/paper-1.21.5-114.jar",
+      "size": 51427274,
+      "sha256": "2ae6ae22adf417699746e0f89fc2ef6cb6ee050a5f6608cee58f0535d60b509e",
+      "minecraft_server_url": "https://piston-data.mojang.com/v1/objects/e6ec2f64e6080b9b5d9b471b291c33cc7f509733/server.jar",
+      "minecraft_server_sha1": "e6ec2f64e6080b9b5d9b471b291c33cc7f509733",
+      "minecraft_server_size": 57269758
+    },
+    "paper/server/1.21.6": {
+      "artifact_id": "paper-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "client_protocol": "1.21.6",
+      "paper_build": 48,
+      "channel": "STABLE",
+      "build_api_url": "https://fill.papermc.io/v3/projects/paper/versions/1.21.6/builds/48",
+      "download_url": "https://fill-data.papermc.io/v1/objects/35e2dfa66b3491b9d2f0bb033679fa5aca1e1fdf097e7a06a80ce8afeda5c214/paper-1.21.6-48.jar",
+      "size": 52639704,
+      "sha256": "35e2dfa66b3491b9d2f0bb033679fa5aca1e1fdf097e7a06a80ce8afeda5c214",
+      "minecraft_server_url": "https://piston-data.mojang.com/v1/objects/6e64dcabba3c01a7271b4fa6bd898483b794c59b/server.jar",
+      "minecraft_server_sha1": "6e64dcabba3c01a7271b4fa6bd898483b794c59b",
+      "minecraft_server_size": 57554576
+    },
+    "paper/server/1.21.7": {
+      "artifact_id": "paper-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "client_protocol": "1.21.8",
+      "paper_build": 32,
+      "channel": "STABLE",
+      "build_api_url": "https://fill.papermc.io/v3/projects/paper/versions/1.21.7/builds/32",
+      "download_url": "https://fill-data.papermc.io/v1/objects/83838188699cb2837e55b890fb1a1d39ad0710285ed633fbf9fc14e9f47ce078/paper-1.21.7-32.jar",
+      "size": 52771702,
+      "sha256": "83838188699cb2837e55b890fb1a1d39ad0710285ed633fbf9fc14e9f47ce078",
+      "minecraft_server_url": "https://piston-data.mojang.com/v1/objects/05e4b48fbc01f0385adb74bcff9751d34552486c/server.jar",
+      "minecraft_server_sha1": "05e4b48fbc01f0385adb74bcff9751d34552486c",
+      "minecraft_server_size": 57556704
+    },
+    "paper/server/1.21.8": {
+      "artifact_id": "paper-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "client_protocol": "1.21.8",
+      "paper_build": 60,
+      "channel": "STABLE",
+      "build_api_url": "https://fill.papermc.io/v3/projects/paper/versions/1.21.8/builds/60",
+      "download_url": "https://fill-data.papermc.io/v1/objects/8de7c52c3b02403503d16fac58003f1efef7dd7a0256786843927fa92ee57f1e/paper-1.21.8-60.jar",
+      "size": 52811717,
+      "sha256": "8de7c52c3b02403503d16fac58003f1efef7dd7a0256786843927fa92ee57f1e",
+      "minecraft_server_url": "https://piston-data.mojang.com/v1/objects/6bce4ef400e4efaa63a13d5e6f6b500be969ef81/server.jar",
+      "minecraft_server_sha1": "6bce4ef400e4efaa63a13d5e6f6b500be969ef81",
+      "minecraft_server_size": 57555044
+    },
+    "paper/server/1.21.9": {
+      "artifact_id": "paper-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "client_protocol": "1.21.9",
+      "paper_build": 59,
+      "channel": "ALPHA",
+      "build_api_url": "https://fill.papermc.io/v3/projects/paper/versions/1.21.9/builds/59",
+      "download_url": "https://fill-data.papermc.io/v1/objects/aec002e77c7566e49494fdf05430b96078ffd1d7430e652d4f338fef951e7a10/paper-1.21.9-59.jar",
+      "size": 53440323,
+      "sha256": "aec002e77c7566e49494fdf05430b96078ffd1d7430e652d4f338fef951e7a10",
+      "minecraft_server_url": "https://piston-data.mojang.com/v1/objects/11e54c2081420a4d49db3007e66c80a22579ff2a/server.jar",
+      "minecraft_server_sha1": "11e54c2081420a4d49db3007e66c80a22579ff2a",
+      "minecraft_server_size": 58638725
+    },
+    "paper/server/1.21.10": {
+      "artifact_id": "paper-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "client_protocol": "1.21.10",
+      "paper_build": 130,
+      "channel": "STABLE",
+      "build_api_url": "https://fill.papermc.io/v3/projects/paper/versions/1.21.10/builds/130",
+      "download_url": "https://fill-data.papermc.io/v1/objects/158703f75a26f842ea656b3dc6d75bf3d1ec176b97a2c36384d0b80b3871af53/paper-1.21.10-130.jar",
+      "size": 54475623,
+      "sha256": "158703f75a26f842ea656b3dc6d75bf3d1ec176b97a2c36384d0b80b3871af53",
+      "minecraft_server_url": "https://piston-data.mojang.com/v1/objects/95495a7f485eedd84ce928cef5e223b757d2f764/server.jar",
+      "minecraft_server_sha1": "95495a7f485eedd84ce928cef5e223b757d2f764",
+      "minecraft_server_size": 58642415
+    },
+    "paper/server/1.21.11": {
+      "artifact_id": "paper-1.2.0",
+      "adapter": "snake-case-gamerules",
+      "java_major": 21,
+      "client_protocol": "1.21.11",
+      "paper_build": 132,
+      "channel": "STABLE",
+      "build_api_url": "https://fill.papermc.io/v3/projects/paper/versions/1.21.11/builds/132",
+      "download_url": "https://fill-data.papermc.io/v1/objects/5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba/paper-1.21.11-132.jar",
+      "size": 54846016,
+      "sha256": "5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba",
+      "minecraft_server_url": "https://piston-data.mojang.com/v1/objects/64bb6d763bed0a9f1d632ec347938594144943ed/server.jar",
+      "minecraft_server_sha1": "64bb6d763bed0a9f1d632ec347938594144943ed",
+      "minecraft_server_size": 56327581
+    },
+    "fabric/server/1.21": {
+      "artifact_id": "fabric-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "client_protocol": "1.21",
+      "loader": "0.19.5",
+      "installer": "1.1.2",
+      "launcher_url": "https://meta.fabricmc.net/v2/versions/loader/1.21/0.19.5/1.1.2/server/jar",
+      "launcher_size": 181838,
+      "launcher_sha256": "de7ee2319d20aca8c26d2008849c7cac0ff1761ea4c609ae3b8c70bef82a85b8",
+      "loader_main_class": "net.fabricmc.loader.impl.launch.knot.KnotServer",
+      "minecraft_server_url": "https://piston-data.mojang.com/v1/objects/450698d1863ab5180c25d7c804ef0fe6369dd1ba/server.jar",
+      "minecraft_server_sha1": "450698d1863ab5180c25d7c804ef0fe6369dd1ba",
+      "minecraft_server_size": 51623779,
+      "loader_libraries": [
+        {
+          "path": "org/ow2/asm/asm/9.10.1/asm-9.10.1.jar",
+          "sha256": "ed825d10ab1399c8c0cb669e688cf0c8c82629b4c8399b58352b68e92ca10fcb"
+        },
+        {
+          "path": "org/ow2/asm/asm-analysis/9.10.1/asm-analysis-9.10.1.jar",
+          "sha256": "dede75a21306b65974ecd8f87114ff6970f09fb794157a4ca09ab25c888c2bfc"
+        },
+        {
+          "path": "org/ow2/asm/asm-commons/9.10.1/asm-commons-9.10.1.jar",
+          "sha256": "6d0abefb7cbf972ea16edb37ec14835372505063a45f976ab7ea889ed9497895"
+        },
+        {
+          "path": "org/ow2/asm/asm-tree/9.10.1/asm-tree-9.10.1.jar",
+          "sha256": "3dfb0d5b6a106cd40b5b250e39935fbf2f927f4477546a5369a3ac609cf0506b"
+        },
+        {
+          "path": "org/ow2/asm/asm-util/9.10.1/asm-util-9.10.1.jar",
+          "sha256": "1bb99d091fba2597dc6d51193e9bbcf0d8447e7ed96bd8f0198b18152f09655c"
+        },
+        {
+          "path": "net/fabricmc/sponge-mixin/0.17.4+mixin.0.8.7/sponge-mixin-0.17.4+mixin.0.8.7.jar",
+          "sha256": "1f0ae44db7295f8626f33b1dc0ad7f043d8954a8d6847247875fcc5dfcecc934"
+        },
+        {
+          "path": "net/fabricmc/intermediary/1.21/intermediary-1.21.jar",
+          "sha256": "922a24a6ba124abb8e8140647ee855fc643373a930b5e3363aacc0262e748da0"
+        },
+        {
+          "path": "net/fabricmc/fabric-loader/0.19.5/fabric-loader-0.19.5.jar",
+          "sha256": "93044e4dd46de5d8136701292f05e868da096d2c9fddb4793e4fdbcc63efc695"
+        }
+      ]
+    },
+    "fabric/server/1.21.1": {
+      "artifact_id": "fabric-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "client_protocol": "1.21.1",
+      "loader": "0.19.5",
+      "installer": "1.1.2",
+      "launcher_url": "https://meta.fabricmc.net/v2/versions/loader/1.21.1/0.19.5/1.1.2/server/jar",
+      "launcher_size": 181840,
+      "launcher_sha256": "809d99b16dd4d4b57384d128724ab0d6560f859aaba989dc6750d8437a447ed0",
+      "loader_main_class": "net.fabricmc.loader.impl.launch.knot.KnotServer",
+      "minecraft_server_url": "https://piston-data.mojang.com/v1/objects/59353fb40c36d304f2035d51e7d6e6baa98dc05c/server.jar",
+      "minecraft_server_sha1": "59353fb40c36d304f2035d51e7d6e6baa98dc05c",
+      "minecraft_server_size": 51627615,
+      "loader_libraries": [
+        {
+          "path": "org/ow2/asm/asm/9.10.1/asm-9.10.1.jar",
+          "sha256": "ed825d10ab1399c8c0cb669e688cf0c8c82629b4c8399b58352b68e92ca10fcb"
+        },
+        {
+          "path": "org/ow2/asm/asm-analysis/9.10.1/asm-analysis-9.10.1.jar",
+          "sha256": "dede75a21306b65974ecd8f87114ff6970f09fb794157a4ca09ab25c888c2bfc"
+        },
+        {
+          "path": "org/ow2/asm/asm-commons/9.10.1/asm-commons-9.10.1.jar",
+          "sha256": "6d0abefb7cbf972ea16edb37ec14835372505063a45f976ab7ea889ed9497895"
+        },
+        {
+          "path": "org/ow2/asm/asm-tree/9.10.1/asm-tree-9.10.1.jar",
+          "sha256": "3dfb0d5b6a106cd40b5b250e39935fbf2f927f4477546a5369a3ac609cf0506b"
+        },
+        {
+          "path": "org/ow2/asm/asm-util/9.10.1/asm-util-9.10.1.jar",
+          "sha256": "1bb99d091fba2597dc6d51193e9bbcf0d8447e7ed96bd8f0198b18152f09655c"
+        },
+        {
+          "path": "net/fabricmc/sponge-mixin/0.17.4+mixin.0.8.7/sponge-mixin-0.17.4+mixin.0.8.7.jar",
+          "sha256": "1f0ae44db7295f8626f33b1dc0ad7f043d8954a8d6847247875fcc5dfcecc934"
+        },
+        {
+          "path": "net/fabricmc/intermediary/1.21.1/intermediary-1.21.1.jar",
+          "sha256": "6059157dfb4a536ec151697004f74f6004b7d346b289c2f89849e0e585aa36fa"
+        },
+        {
+          "path": "net/fabricmc/fabric-loader/0.19.5/fabric-loader-0.19.5.jar",
+          "sha256": "93044e4dd46de5d8136701292f05e868da096d2c9fddb4793e4fdbcc63efc695"
+        }
+      ]
+    },
+    "fabric/server/1.21.2": {
+      "artifact_id": "fabric-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "client_protocol": "1.21.3",
+      "loader": "0.19.5",
+      "installer": "1.1.2",
+      "launcher_url": "https://meta.fabricmc.net/v2/versions/loader/1.21.2/0.19.5/1.1.2/server/jar",
+      "launcher_size": 181838,
+      "launcher_sha256": "23e06639f074d0dfc73f399e42d8d8fc3701438eda22f28dcca3925655c14455",
+      "loader_main_class": "net.fabricmc.loader.impl.launch.knot.KnotServer",
+      "minecraft_server_url": "https://piston-data.mojang.com/v1/objects/7bf95409b0d9b5388bfea3704ec92012d273c14c/server.jar",
+      "minecraft_server_sha1": "7bf95409b0d9b5388bfea3704ec92012d273c14c",
+      "minecraft_server_size": 56120171,
+      "loader_libraries": [
+        {
+          "path": "org/ow2/asm/asm/9.10.1/asm-9.10.1.jar",
+          "sha256": "ed825d10ab1399c8c0cb669e688cf0c8c82629b4c8399b58352b68e92ca10fcb"
+        },
+        {
+          "path": "org/ow2/asm/asm-analysis/9.10.1/asm-analysis-9.10.1.jar",
+          "sha256": "dede75a21306b65974ecd8f87114ff6970f09fb794157a4ca09ab25c888c2bfc"
+        },
+        {
+          "path": "org/ow2/asm/asm-commons/9.10.1/asm-commons-9.10.1.jar",
+          "sha256": "6d0abefb7cbf972ea16edb37ec14835372505063a45f976ab7ea889ed9497895"
+        },
+        {
+          "path": "org/ow2/asm/asm-tree/9.10.1/asm-tree-9.10.1.jar",
+          "sha256": "3dfb0d5b6a106cd40b5b250e39935fbf2f927f4477546a5369a3ac609cf0506b"
+        },
+        {
+          "path": "org/ow2/asm/asm-util/9.10.1/asm-util-9.10.1.jar",
+          "sha256": "1bb99d091fba2597dc6d51193e9bbcf0d8447e7ed96bd8f0198b18152f09655c"
+        },
+        {
+          "path": "net/fabricmc/sponge-mixin/0.17.4+mixin.0.8.7/sponge-mixin-0.17.4+mixin.0.8.7.jar",
+          "sha256": "1f0ae44db7295f8626f33b1dc0ad7f043d8954a8d6847247875fcc5dfcecc934"
+        },
+        {
+          "path": "net/fabricmc/intermediary/1.21.2/intermediary-1.21.2.jar",
+          "sha256": "d484c72e9b4c010ad5be43122eebb4a90b32aedba64eb460d294f90f7f902f3a"
+        },
+        {
+          "path": "net/fabricmc/fabric-loader/0.19.5/fabric-loader-0.19.5.jar",
+          "sha256": "93044e4dd46de5d8136701292f05e868da096d2c9fddb4793e4fdbcc63efc695"
+        }
+      ]
+    },
+    "fabric/server/1.21.3": {
+      "artifact_id": "fabric-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "client_protocol": "1.21.3",
+      "loader": "0.19.5",
+      "installer": "1.1.2",
+      "launcher_url": "https://meta.fabricmc.net/v2/versions/loader/1.21.3/0.19.5/1.1.2/server/jar",
+      "launcher_size": 181840,
+      "launcher_sha256": "8357e0e475273736aa766e798ac95ae95fd09f5a3f39263e8f7c81c2e5196b3d",
+      "loader_main_class": "net.fabricmc.loader.impl.launch.knot.KnotServer",
+      "minecraft_server_url": "https://piston-data.mojang.com/v1/objects/45810d238246d90e811d896f87b14695b7fb6839/server.jar",
+      "minecraft_server_sha1": "45810d238246d90e811d896f87b14695b7fb6839",
+      "minecraft_server_size": 56122038,
+      "loader_libraries": [
+        {
+          "path": "org/ow2/asm/asm/9.10.1/asm-9.10.1.jar",
+          "sha256": "ed825d10ab1399c8c0cb669e688cf0c8c82629b4c8399b58352b68e92ca10fcb"
+        },
+        {
+          "path": "org/ow2/asm/asm-analysis/9.10.1/asm-analysis-9.10.1.jar",
+          "sha256": "dede75a21306b65974ecd8f87114ff6970f09fb794157a4ca09ab25c888c2bfc"
+        },
+        {
+          "path": "org/ow2/asm/asm-commons/9.10.1/asm-commons-9.10.1.jar",
+          "sha256": "6d0abefb7cbf972ea16edb37ec14835372505063a45f976ab7ea889ed9497895"
+        },
+        {
+          "path": "org/ow2/asm/asm-tree/9.10.1/asm-tree-9.10.1.jar",
+          "sha256": "3dfb0d5b6a106cd40b5b250e39935fbf2f927f4477546a5369a3ac609cf0506b"
+        },
+        {
+          "path": "org/ow2/asm/asm-util/9.10.1/asm-util-9.10.1.jar",
+          "sha256": "1bb99d091fba2597dc6d51193e9bbcf0d8447e7ed96bd8f0198b18152f09655c"
+        },
+        {
+          "path": "net/fabricmc/sponge-mixin/0.17.4+mixin.0.8.7/sponge-mixin-0.17.4+mixin.0.8.7.jar",
+          "sha256": "1f0ae44db7295f8626f33b1dc0ad7f043d8954a8d6847247875fcc5dfcecc934"
+        },
+        {
+          "path": "net/fabricmc/intermediary/1.21.3/intermediary-1.21.3.jar",
+          "sha256": "c595ab903ddac4472aac65bd9883b2fccf9095e1a6a62a52f4d7d0f79eaf730e"
+        },
+        {
+          "path": "net/fabricmc/fabric-loader/0.19.5/fabric-loader-0.19.5.jar",
+          "sha256": "93044e4dd46de5d8136701292f05e868da096d2c9fddb4793e4fdbcc63efc695"
+        }
+      ]
+    },
+    "fabric/server/1.21.4": {
+      "artifact_id": "fabric-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "client_protocol": "1.21.4",
+      "loader": "0.19.5",
+      "installer": "1.1.2",
+      "launcher_url": "https://meta.fabricmc.net/v2/versions/loader/1.21.4/0.19.5/1.1.2/server/jar",
+      "launcher_size": 181840,
+      "launcher_sha256": "f73e0c1f6912cd9f88078098659be0348633433b28ab79faf93fc2a499729fe3",
+      "loader_main_class": "net.fabricmc.loader.impl.launch.knot.KnotServer",
+      "minecraft_server_url": "https://piston-data.mojang.com/v1/objects/4707d00eb834b446575d89a61a11b5d548d8c001/server.jar",
+      "minecraft_server_sha1": "4707d00eb834b446575d89a61a11b5d548d8c001",
+      "minecraft_server_size": 56880250,
+      "loader_libraries": [
+        {
+          "path": "org/ow2/asm/asm/9.10.1/asm-9.10.1.jar",
+          "sha256": "ed825d10ab1399c8c0cb669e688cf0c8c82629b4c8399b58352b68e92ca10fcb"
+        },
+        {
+          "path": "org/ow2/asm/asm-analysis/9.10.1/asm-analysis-9.10.1.jar",
+          "sha256": "dede75a21306b65974ecd8f87114ff6970f09fb794157a4ca09ab25c888c2bfc"
+        },
+        {
+          "path": "org/ow2/asm/asm-commons/9.10.1/asm-commons-9.10.1.jar",
+          "sha256": "6d0abefb7cbf972ea16edb37ec14835372505063a45f976ab7ea889ed9497895"
+        },
+        {
+          "path": "org/ow2/asm/asm-tree/9.10.1/asm-tree-9.10.1.jar",
+          "sha256": "3dfb0d5b6a106cd40b5b250e39935fbf2f927f4477546a5369a3ac609cf0506b"
+        },
+        {
+          "path": "org/ow2/asm/asm-util/9.10.1/asm-util-9.10.1.jar",
+          "sha256": "1bb99d091fba2597dc6d51193e9bbcf0d8447e7ed96bd8f0198b18152f09655c"
+        },
+        {
+          "path": "net/fabricmc/sponge-mixin/0.17.4+mixin.0.8.7/sponge-mixin-0.17.4+mixin.0.8.7.jar",
+          "sha256": "1f0ae44db7295f8626f33b1dc0ad7f043d8954a8d6847247875fcc5dfcecc934"
+        },
+        {
+          "path": "net/fabricmc/intermediary/1.21.4/intermediary-1.21.4.jar",
+          "sha256": "6aea9971d72e14f03f2c167ee2c24edd5eb0a59fc3eaedcbdf5c2ad0f0c36786"
+        },
+        {
+          "path": "net/fabricmc/fabric-loader/0.19.5/fabric-loader-0.19.5.jar",
+          "sha256": "93044e4dd46de5d8136701292f05e868da096d2c9fddb4793e4fdbcc63efc695"
+        }
+      ]
+    },
+    "fabric/server/1.21.5": {
+      "artifact_id": "fabric-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "client_protocol": "1.21.5",
+      "loader": "0.19.5",
+      "installer": "1.1.2",
+      "launcher_url": "https://meta.fabricmc.net/v2/versions/loader/1.21.5/0.19.5/1.1.2/server/jar",
+      "launcher_size": 181840,
+      "launcher_sha256": "51782768a82f9ef6d6ab601ee9240029c31f531a552616b388edaa4bc47a4b04",
+      "loader_main_class": "net.fabricmc.loader.impl.launch.knot.KnotServer",
+      "minecraft_server_url": "https://piston-data.mojang.com/v1/objects/e6ec2f64e6080b9b5d9b471b291c33cc7f509733/server.jar",
+      "minecraft_server_sha1": "e6ec2f64e6080b9b5d9b471b291c33cc7f509733",
+      "minecraft_server_size": 57269758,
+      "loader_libraries": [
+        {
+          "path": "org/ow2/asm/asm/9.10.1/asm-9.10.1.jar",
+          "sha256": "ed825d10ab1399c8c0cb669e688cf0c8c82629b4c8399b58352b68e92ca10fcb"
+        },
+        {
+          "path": "org/ow2/asm/asm-analysis/9.10.1/asm-analysis-9.10.1.jar",
+          "sha256": "dede75a21306b65974ecd8f87114ff6970f09fb794157a4ca09ab25c888c2bfc"
+        },
+        {
+          "path": "org/ow2/asm/asm-commons/9.10.1/asm-commons-9.10.1.jar",
+          "sha256": "6d0abefb7cbf972ea16edb37ec14835372505063a45f976ab7ea889ed9497895"
+        },
+        {
+          "path": "org/ow2/asm/asm-tree/9.10.1/asm-tree-9.10.1.jar",
+          "sha256": "3dfb0d5b6a106cd40b5b250e39935fbf2f927f4477546a5369a3ac609cf0506b"
+        },
+        {
+          "path": "org/ow2/asm/asm-util/9.10.1/asm-util-9.10.1.jar",
+          "sha256": "1bb99d091fba2597dc6d51193e9bbcf0d8447e7ed96bd8f0198b18152f09655c"
+        },
+        {
+          "path": "net/fabricmc/sponge-mixin/0.17.4+mixin.0.8.7/sponge-mixin-0.17.4+mixin.0.8.7.jar",
+          "sha256": "1f0ae44db7295f8626f33b1dc0ad7f043d8954a8d6847247875fcc5dfcecc934"
+        },
+        {
+          "path": "net/fabricmc/intermediary/1.21.5/intermediary-1.21.5.jar",
+          "sha256": "391a92396f2a3f8abbd6e8c67121cec374e5253189228370885939691812ec84"
+        },
+        {
+          "path": "net/fabricmc/fabric-loader/0.19.5/fabric-loader-0.19.5.jar",
+          "sha256": "93044e4dd46de5d8136701292f05e868da096d2c9fddb4793e4fdbcc63efc695"
+        }
+      ]
+    },
+    "fabric/server/1.21.6": {
+      "artifact_id": "fabric-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "client_protocol": "1.21.6",
+      "loader": "0.19.5",
+      "installer": "1.1.2",
+      "launcher_url": "https://meta.fabricmc.net/v2/versions/loader/1.21.6/0.19.5/1.1.2/server/jar",
+      "launcher_size": 181840,
+      "launcher_sha256": "9e3b1f1b86b01451fea462f4217cbd243d551d3a3d593e530352a46184e4ceb2",
+      "loader_main_class": "net.fabricmc.loader.impl.launch.knot.KnotServer",
+      "minecraft_server_url": "https://piston-data.mojang.com/v1/objects/6e64dcabba3c01a7271b4fa6bd898483b794c59b/server.jar",
+      "minecraft_server_sha1": "6e64dcabba3c01a7271b4fa6bd898483b794c59b",
+      "minecraft_server_size": 57554576,
+      "loader_libraries": [
+        {
+          "path": "org/ow2/asm/asm/9.10.1/asm-9.10.1.jar",
+          "sha256": "ed825d10ab1399c8c0cb669e688cf0c8c82629b4c8399b58352b68e92ca10fcb"
+        },
+        {
+          "path": "org/ow2/asm/asm-analysis/9.10.1/asm-analysis-9.10.1.jar",
+          "sha256": "dede75a21306b65974ecd8f87114ff6970f09fb794157a4ca09ab25c888c2bfc"
+        },
+        {
+          "path": "org/ow2/asm/asm-commons/9.10.1/asm-commons-9.10.1.jar",
+          "sha256": "6d0abefb7cbf972ea16edb37ec14835372505063a45f976ab7ea889ed9497895"
+        },
+        {
+          "path": "org/ow2/asm/asm-tree/9.10.1/asm-tree-9.10.1.jar",
+          "sha256": "3dfb0d5b6a106cd40b5b250e39935fbf2f927f4477546a5369a3ac609cf0506b"
+        },
+        {
+          "path": "org/ow2/asm/asm-util/9.10.1/asm-util-9.10.1.jar",
+          "sha256": "1bb99d091fba2597dc6d51193e9bbcf0d8447e7ed96bd8f0198b18152f09655c"
+        },
+        {
+          "path": "net/fabricmc/sponge-mixin/0.17.4+mixin.0.8.7/sponge-mixin-0.17.4+mixin.0.8.7.jar",
+          "sha256": "1f0ae44db7295f8626f33b1dc0ad7f043d8954a8d6847247875fcc5dfcecc934"
+        },
+        {
+          "path": "net/fabricmc/intermediary/1.21.6/intermediary-1.21.6.jar",
+          "sha256": "6a5fe8a17708ea5a0d16e3ed9e91f8a77e8e1d5a4a251d96e6f6f0dd9de4c341"
+        },
+        {
+          "path": "net/fabricmc/fabric-loader/0.19.5/fabric-loader-0.19.5.jar",
+          "sha256": "93044e4dd46de5d8136701292f05e868da096d2c9fddb4793e4fdbcc63efc695"
+        }
+      ]
+    },
+    "fabric/server/1.21.7": {
+      "artifact_id": "fabric-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "client_protocol": "1.21.8",
+      "loader": "0.19.5",
+      "installer": "1.1.2",
+      "launcher_url": "https://meta.fabricmc.net/v2/versions/loader/1.21.7/0.19.5/1.1.2/server/jar",
+      "launcher_size": 181840,
+      "launcher_sha256": "ea26700137e3654b6356d2127135431615cd76a90505b1fa62d613a869a979a1",
+      "loader_main_class": "net.fabricmc.loader.impl.launch.knot.KnotServer",
+      "minecraft_server_url": "https://piston-data.mojang.com/v1/objects/05e4b48fbc01f0385adb74bcff9751d34552486c/server.jar",
+      "minecraft_server_sha1": "05e4b48fbc01f0385adb74bcff9751d34552486c",
+      "minecraft_server_size": 57556704,
+      "loader_libraries": [
+        {
+          "path": "org/ow2/asm/asm/9.10.1/asm-9.10.1.jar",
+          "sha256": "ed825d10ab1399c8c0cb669e688cf0c8c82629b4c8399b58352b68e92ca10fcb"
+        },
+        {
+          "path": "org/ow2/asm/asm-analysis/9.10.1/asm-analysis-9.10.1.jar",
+          "sha256": "dede75a21306b65974ecd8f87114ff6970f09fb794157a4ca09ab25c888c2bfc"
+        },
+        {
+          "path": "org/ow2/asm/asm-commons/9.10.1/asm-commons-9.10.1.jar",
+          "sha256": "6d0abefb7cbf972ea16edb37ec14835372505063a45f976ab7ea889ed9497895"
+        },
+        {
+          "path": "org/ow2/asm/asm-tree/9.10.1/asm-tree-9.10.1.jar",
+          "sha256": "3dfb0d5b6a106cd40b5b250e39935fbf2f927f4477546a5369a3ac609cf0506b"
+        },
+        {
+          "path": "org/ow2/asm/asm-util/9.10.1/asm-util-9.10.1.jar",
+          "sha256": "1bb99d091fba2597dc6d51193e9bbcf0d8447e7ed96bd8f0198b18152f09655c"
+        },
+        {
+          "path": "net/fabricmc/sponge-mixin/0.17.4+mixin.0.8.7/sponge-mixin-0.17.4+mixin.0.8.7.jar",
+          "sha256": "1f0ae44db7295f8626f33b1dc0ad7f043d8954a8d6847247875fcc5dfcecc934"
+        },
+        {
+          "path": "net/fabricmc/intermediary/1.21.7/intermediary-1.21.7.jar",
+          "sha256": "a6e215edeb3a21fee3fb6e642b096afe6266a70dc51fd47c54ea524b16641376"
+        },
+        {
+          "path": "net/fabricmc/fabric-loader/0.19.5/fabric-loader-0.19.5.jar",
+          "sha256": "93044e4dd46de5d8136701292f05e868da096d2c9fddb4793e4fdbcc63efc695"
+        }
+      ]
+    },
+    "fabric/server/1.21.8": {
+      "artifact_id": "fabric-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "client_protocol": "1.21.8",
+      "loader": "0.19.5",
+      "installer": "1.1.2",
+      "launcher_url": "https://meta.fabricmc.net/v2/versions/loader/1.21.8/0.19.5/1.1.2/server/jar",
+      "launcher_size": 181840,
+      "launcher_sha256": "07165d19123a3b2157550fc67d2817b798b39addb96dae981b9b50d0b4798416",
+      "loader_main_class": "net.fabricmc.loader.impl.launch.knot.KnotServer",
+      "minecraft_server_url": "https://piston-data.mojang.com/v1/objects/6bce4ef400e4efaa63a13d5e6f6b500be969ef81/server.jar",
+      "minecraft_server_sha1": "6bce4ef400e4efaa63a13d5e6f6b500be969ef81",
+      "minecraft_server_size": 57555044,
+      "loader_libraries": [
+        {
+          "path": "org/ow2/asm/asm/9.10.1/asm-9.10.1.jar",
+          "sha256": "ed825d10ab1399c8c0cb669e688cf0c8c82629b4c8399b58352b68e92ca10fcb"
+        },
+        {
+          "path": "org/ow2/asm/asm-analysis/9.10.1/asm-analysis-9.10.1.jar",
+          "sha256": "dede75a21306b65974ecd8f87114ff6970f09fb794157a4ca09ab25c888c2bfc"
+        },
+        {
+          "path": "org/ow2/asm/asm-commons/9.10.1/asm-commons-9.10.1.jar",
+          "sha256": "6d0abefb7cbf972ea16edb37ec14835372505063a45f976ab7ea889ed9497895"
+        },
+        {
+          "path": "org/ow2/asm/asm-tree/9.10.1/asm-tree-9.10.1.jar",
+          "sha256": "3dfb0d5b6a106cd40b5b250e39935fbf2f927f4477546a5369a3ac609cf0506b"
+        },
+        {
+          "path": "org/ow2/asm/asm-util/9.10.1/asm-util-9.10.1.jar",
+          "sha256": "1bb99d091fba2597dc6d51193e9bbcf0d8447e7ed96bd8f0198b18152f09655c"
+        },
+        {
+          "path": "net/fabricmc/sponge-mixin/0.17.4+mixin.0.8.7/sponge-mixin-0.17.4+mixin.0.8.7.jar",
+          "sha256": "1f0ae44db7295f8626f33b1dc0ad7f043d8954a8d6847247875fcc5dfcecc934"
+        },
+        {
+          "path": "net/fabricmc/intermediary/1.21.8/intermediary-1.21.8.jar",
+          "sha256": "6e20d89719a0239ef93e9ee2548f1e45b61b186676d615127015474b06647395"
+        },
+        {
+          "path": "net/fabricmc/fabric-loader/0.19.5/fabric-loader-0.19.5.jar",
+          "sha256": "93044e4dd46de5d8136701292f05e868da096d2c9fddb4793e4fdbcc63efc695"
+        }
+      ]
+    },
+    "fabric/server/1.21.9": {
+      "artifact_id": "fabric-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "client_protocol": "1.21.9",
+      "loader": "0.19.5",
+      "installer": "1.1.2",
+      "launcher_url": "https://meta.fabricmc.net/v2/versions/loader/1.21.9/0.19.5/1.1.2/server/jar",
+      "launcher_size": 181840,
+      "launcher_sha256": "f67d920449b77eeca11842cf3596075dfeab10038e4c61e32638151fc7928494",
+      "loader_main_class": "net.fabricmc.loader.impl.launch.knot.KnotServer",
+      "minecraft_server_url": "https://piston-data.mojang.com/v1/objects/11e54c2081420a4d49db3007e66c80a22579ff2a/server.jar",
+      "minecraft_server_sha1": "11e54c2081420a4d49db3007e66c80a22579ff2a",
+      "minecraft_server_size": 58638725,
+      "loader_libraries": [
+        {
+          "path": "org/ow2/asm/asm/9.10.1/asm-9.10.1.jar",
+          "sha256": "ed825d10ab1399c8c0cb669e688cf0c8c82629b4c8399b58352b68e92ca10fcb"
+        },
+        {
+          "path": "org/ow2/asm/asm-analysis/9.10.1/asm-analysis-9.10.1.jar",
+          "sha256": "dede75a21306b65974ecd8f87114ff6970f09fb794157a4ca09ab25c888c2bfc"
+        },
+        {
+          "path": "org/ow2/asm/asm-commons/9.10.1/asm-commons-9.10.1.jar",
+          "sha256": "6d0abefb7cbf972ea16edb37ec14835372505063a45f976ab7ea889ed9497895"
+        },
+        {
+          "path": "org/ow2/asm/asm-tree/9.10.1/asm-tree-9.10.1.jar",
+          "sha256": "3dfb0d5b6a106cd40b5b250e39935fbf2f927f4477546a5369a3ac609cf0506b"
+        },
+        {
+          "path": "org/ow2/asm/asm-util/9.10.1/asm-util-9.10.1.jar",
+          "sha256": "1bb99d091fba2597dc6d51193e9bbcf0d8447e7ed96bd8f0198b18152f09655c"
+        },
+        {
+          "path": "net/fabricmc/sponge-mixin/0.17.4+mixin.0.8.7/sponge-mixin-0.17.4+mixin.0.8.7.jar",
+          "sha256": "1f0ae44db7295f8626f33b1dc0ad7f043d8954a8d6847247875fcc5dfcecc934"
+        },
+        {
+          "path": "net/fabricmc/intermediary/1.21.9/intermediary-1.21.9.jar",
+          "sha256": "f967f700e22c700e08d112b1605f3f5974d9a77ad1edbe10880fd930f8e3e047"
+        },
+        {
+          "path": "net/fabricmc/fabric-loader/0.19.5/fabric-loader-0.19.5.jar",
+          "sha256": "93044e4dd46de5d8136701292f05e868da096d2c9fddb4793e4fdbcc63efc695"
+        }
+      ]
+    },
+    "fabric/server/1.21.10": {
+      "artifact_id": "fabric-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "client_protocol": "1.21.10",
+      "loader": "0.19.5",
+      "installer": "1.1.2",
+      "launcher_url": "https://meta.fabricmc.net/v2/versions/loader/1.21.10/0.19.5/1.1.2/server/jar",
+      "launcher_size": 181841,
+      "launcher_sha256": "d7fb9c6c6fdfa0cee7cdfbd682756fc9e66950b5297571c827f46f0a8385e486",
+      "loader_main_class": "net.fabricmc.loader.impl.launch.knot.KnotServer",
+      "minecraft_server_url": "https://piston-data.mojang.com/v1/objects/95495a7f485eedd84ce928cef5e223b757d2f764/server.jar",
+      "minecraft_server_sha1": "95495a7f485eedd84ce928cef5e223b757d2f764",
+      "minecraft_server_size": 58642415,
+      "loader_libraries": [
+        {
+          "path": "org/ow2/asm/asm/9.10.1/asm-9.10.1.jar",
+          "sha256": "ed825d10ab1399c8c0cb669e688cf0c8c82629b4c8399b58352b68e92ca10fcb"
+        },
+        {
+          "path": "org/ow2/asm/asm-analysis/9.10.1/asm-analysis-9.10.1.jar",
+          "sha256": "dede75a21306b65974ecd8f87114ff6970f09fb794157a4ca09ab25c888c2bfc"
+        },
+        {
+          "path": "org/ow2/asm/asm-commons/9.10.1/asm-commons-9.10.1.jar",
+          "sha256": "6d0abefb7cbf972ea16edb37ec14835372505063a45f976ab7ea889ed9497895"
+        },
+        {
+          "path": "org/ow2/asm/asm-tree/9.10.1/asm-tree-9.10.1.jar",
+          "sha256": "3dfb0d5b6a106cd40b5b250e39935fbf2f927f4477546a5369a3ac609cf0506b"
+        },
+        {
+          "path": "org/ow2/asm/asm-util/9.10.1/asm-util-9.10.1.jar",
+          "sha256": "1bb99d091fba2597dc6d51193e9bbcf0d8447e7ed96bd8f0198b18152f09655c"
+        },
+        {
+          "path": "net/fabricmc/sponge-mixin/0.17.4+mixin.0.8.7/sponge-mixin-0.17.4+mixin.0.8.7.jar",
+          "sha256": "1f0ae44db7295f8626f33b1dc0ad7f043d8954a8d6847247875fcc5dfcecc934"
+        },
+        {
+          "path": "net/fabricmc/intermediary/1.21.10/intermediary-1.21.10.jar",
+          "sha256": "d11ecd24a935d06d5d84de6cea0680248f4fdb0af01c6356537f654d30b179d3"
+        },
+        {
+          "path": "net/fabricmc/fabric-loader/0.19.5/fabric-loader-0.19.5.jar",
+          "sha256": "93044e4dd46de5d8136701292f05e868da096d2c9fddb4793e4fdbcc63efc695"
+        }
+      ]
+    },
+    "fabric/server/1.21.11": {
+      "artifact_id": "fabric-1.2.0",
+      "adapter": "snake-case-gamerules",
+      "java_major": 21,
+      "client_protocol": "1.21.11",
+      "loader": "0.19.5",
+      "installer": "1.1.2",
+      "launcher_url": "https://meta.fabricmc.net/v2/versions/loader/1.21.11/0.19.5/1.1.2/server/jar",
+      "launcher_size": 181841,
+      "launcher_sha256": "2b63d293be54c8f5484a242859cab841dcee38511e11b2f82e92211f19872d08",
+      "loader_main_class": "net.fabricmc.loader.impl.launch.knot.KnotServer",
+      "minecraft_server_url": "https://piston-data.mojang.com/v1/objects/64bb6d763bed0a9f1d632ec347938594144943ed/server.jar",
+      "minecraft_server_sha1": "64bb6d763bed0a9f1d632ec347938594144943ed",
+      "minecraft_server_size": 56327581,
+      "loader_libraries": [
+        {
+          "path": "org/ow2/asm/asm/9.10.1/asm-9.10.1.jar",
+          "sha256": "ed825d10ab1399c8c0cb669e688cf0c8c82629b4c8399b58352b68e92ca10fcb"
+        },
+        {
+          "path": "org/ow2/asm/asm-analysis/9.10.1/asm-analysis-9.10.1.jar",
+          "sha256": "dede75a21306b65974ecd8f87114ff6970f09fb794157a4ca09ab25c888c2bfc"
+        },
+        {
+          "path": "org/ow2/asm/asm-commons/9.10.1/asm-commons-9.10.1.jar",
+          "sha256": "6d0abefb7cbf972ea16edb37ec14835372505063a45f976ab7ea889ed9497895"
+        },
+        {
+          "path": "org/ow2/asm/asm-tree/9.10.1/asm-tree-9.10.1.jar",
+          "sha256": "3dfb0d5b6a106cd40b5b250e39935fbf2f927f4477546a5369a3ac609cf0506b"
+        },
+        {
+          "path": "org/ow2/asm/asm-util/9.10.1/asm-util-9.10.1.jar",
+          "sha256": "1bb99d091fba2597dc6d51193e9bbcf0d8447e7ed96bd8f0198b18152f09655c"
+        },
+        {
+          "path": "net/fabricmc/sponge-mixin/0.17.4+mixin.0.8.7/sponge-mixin-0.17.4+mixin.0.8.7.jar",
+          "sha256": "1f0ae44db7295f8626f33b1dc0ad7f043d8954a8d6847247875fcc5dfcecc934"
+        },
+        {
+          "path": "net/fabricmc/intermediary/1.21.11/intermediary-1.21.11.jar",
+          "sha256": "886da9b21bf26b24a18960ec868612630821f161d7e8b23cd64bbaa51298cabc"
+        },
+        {
+          "path": "net/fabricmc/fabric-loader/0.19.5/fabric-loader-0.19.5.jar",
+          "sha256": "93044e4dd46de5d8136701292f05e868da096d2c9fddb4793e4fdbcc63efc695"
+        }
+      ]
+    },
+    "fabric/client/1.21": {
+      "artifact_id": "fabric-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "loader": "0.19.5",
+      "profile_id": "fabric-loader-0.19.5-1.21",
+      "profile_url": "https://meta.fabricmc.net/v2/versions/loader/1.21/0.19.5/profile/json",
+      "mod_menu_artifact_id": null,
+      "minecraft_client_sha1": "0e9a07b9bb3390602f977073aa12884a4ce12431",
+      "minecraft_client_size": 26836080,
+      "extended_checks_required": true
+    },
+    "fabric/client/1.21.1": {
+      "artifact_id": "fabric-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "loader": "0.19.5",
+      "profile_id": "fabric-loader-0.19.5-1.21.1",
+      "profile_url": "https://meta.fabricmc.net/v2/versions/loader/1.21.1/0.19.5/profile/json",
+      "mod_menu_artifact_id": null,
+      "minecraft_client_sha1": "30c73b1c5da787909b2f73340419fdf13b9def88",
+      "minecraft_client_size": 26836906,
+      "extended_checks_required": false
+    },
+    "fabric/client/1.21.2": {
+      "artifact_id": "fabric-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "loader": "0.19.5",
+      "profile_id": "fabric-loader-0.19.5-1.21.2",
+      "profile_url": "https://meta.fabricmc.net/v2/versions/loader/1.21.2/0.19.5/profile/json",
+      "mod_menu_artifact_id": null,
+      "minecraft_client_sha1": "c7ac2d0d86f4ca416cab9064ff8a281852ad0c7b",
+      "minecraft_client_size": 27842947,
+      "extended_checks_required": false
+    },
+    "fabric/client/1.21.3": {
+      "artifact_id": "fabric-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "loader": "0.19.5",
+      "profile_id": "fabric-loader-0.19.5-1.21.3",
+      "profile_url": "https://meta.fabricmc.net/v2/versions/loader/1.21.3/0.19.5/profile/json",
+      "mod_menu_artifact_id": null,
+      "minecraft_client_sha1": "6f67d19b4467240639cb2c368ffd4b94ba889705",
+      "minecraft_client_size": 27844259,
+      "extended_checks_required": false
+    },
+    "fabric/client/1.21.4": {
+      "artifact_id": "fabric-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "loader": "0.19.5",
+      "profile_id": "fabric-loader-0.19.5-1.21.4",
+      "profile_url": "https://meta.fabricmc.net/v2/versions/loader/1.21.4/0.19.5/profile/json",
+      "mod_menu_artifact_id": null,
+      "minecraft_client_sha1": "a7e5a6024bfd3cd614625aa05629adf760020304",
+      "minecraft_client_size": 28335587,
+      "extended_checks_required": false
+    },
+    "fabric/client/1.21.5": {
+      "artifact_id": "fabric-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "loader": "0.19.5",
+      "profile_id": "fabric-loader-0.19.5-1.21.5",
+      "profile_url": "https://meta.fabricmc.net/v2/versions/loader/1.21.5/0.19.5/profile/json",
+      "mod_menu_artifact_id": null,
+      "minecraft_client_sha1": "b88808bbb3da8d9f453694b5d8f74a3396f1a533",
+      "minecraft_client_size": 28984409,
+      "extended_checks_required": true
+    },
+    "fabric/client/1.21.6": {
+      "artifact_id": "fabric-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "loader": "0.19.5",
+      "profile_id": "fabric-loader-0.19.5-1.21.6",
+      "profile_url": "https://meta.fabricmc.net/v2/versions/loader/1.21.6/0.19.5/profile/json",
+      "mod_menu_artifact_id": null,
+      "minecraft_client_sha1": "740a125b83dd3447feaa3c5e891ead7fbb21ae28",
+      "minecraft_client_size": 29516555,
+      "extended_checks_required": false
+    },
+    "fabric/client/1.21.7": {
+      "artifact_id": "fabric-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "loader": "0.19.5",
+      "profile_id": "fabric-loader-0.19.5-1.21.7",
+      "profile_url": "https://meta.fabricmc.net/v2/versions/loader/1.21.7/0.19.5/profile/json",
+      "mod_menu_artifact_id": null,
+      "minecraft_client_sha1": "a2db1ea98c37b2d00c83f6867fb8bb581a593e07",
+      "minecraft_client_size": 29522178,
+      "extended_checks_required": false
+    },
+    "fabric/client/1.21.8": {
+      "artifact_id": "fabric-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "loader": "0.19.5",
+      "profile_id": "fabric-loader-0.19.5-1.21.8",
+      "profile_url": "https://meta.fabricmc.net/v2/versions/loader/1.21.8/0.19.5/profile/json",
+      "mod_menu_artifact_id": null,
+      "minecraft_client_sha1": "a19d9badbea944a4369fd0059e53bf7286597576",
+      "minecraft_client_size": 29525242,
+      "extended_checks_required": false
+    },
+    "fabric/client/1.21.9": {
+      "artifact_id": "fabric-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "loader": "0.19.5",
+      "profile_id": "fabric-loader-0.19.5-1.21.9",
+      "profile_url": "https://meta.fabricmc.net/v2/versions/loader/1.21.9/0.19.5/profile/json",
+      "mod_menu_artifact_id": null,
+      "minecraft_client_sha1": "ce92fd8d1b2460c41ceda07ae7b3fe863a80d045",
+      "minecraft_client_size": 30591861,
+      "extended_checks_required": false
+    },
+    "fabric/client/1.21.10": {
+      "artifact_id": "fabric-1.2.0",
+      "adapter": "camel-case-gamerules",
+      "java_major": 21,
+      "loader": "0.19.5",
+      "profile_id": "fabric-loader-0.19.5-1.21.10",
+      "profile_url": "https://meta.fabricmc.net/v2/versions/loader/1.21.10/0.19.5/profile/json",
+      "mod_menu_artifact_id": null,
+      "minecraft_client_sha1": "d3bdf582a7fa723ce199f3665588dcfe6bf9aca8",
+      "minecraft_client_size": 30592168,
+      "extended_checks_required": false
+    },
+    "fabric/client/1.21.11": {
+      "artifact_id": "fabric-1.2.0",
+      "adapter": "snake-case-gamerules",
+      "java_major": 21,
+      "loader": "0.19.5",
+      "profile_id": "fabric-loader-0.19.5-1.21.11",
+      "profile_url": "https://meta.fabricmc.net/v2/versions/loader/1.21.11/0.19.5/profile/json",
+      "mod_menu_artifact_id": null,
+      "minecraft_client_sha1": "ba2df812c2d12e0219c489c4cd9a5e1f0760f5bd",
+      "minecraft_client_size": 31152600,
+      "extended_checks_required": true
+    }
+  }
+}
