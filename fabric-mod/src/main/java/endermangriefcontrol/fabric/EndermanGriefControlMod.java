@@ -17,6 +17,8 @@ import endermangriefcontrol.messaging.MessageTemplates;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Objects;
+
 public final class EndermanGriefControlMod implements ModInitializer {
 
     public static final String MOD_ID = "no-enderman-grief";
@@ -65,10 +67,52 @@ public final class EndermanGriefControlMod implements ModInitializer {
         return HELD_BLOCK_MONITOR;
     }
 
+    /** An immutable snapshot of the four choices staged by Mod Menu. */
+    public record Settings(boolean enabled, HeldBlockHandling heldBlockHandling,
+                           boolean logRemovals, boolean loggingEnabled) {
+        public Settings {
+            Objects.requireNonNull(heldBlockHandling, "heldBlockHandling");
+        }
+    }
+
     /**
-     * The single place "enabled" actually gets changed - both the command and the Mod Menu screen
-     * call this rather than each mutating config.enabled themselves, so the arm-on-re-enable side
-     * effect only has to be written once and can't be forgotten at a second call site.
+     * Commits a Mod Menu selection with live monitor actions. The caller must run this on the
+     * active server thread; all final values are installed and saved before monitor work starts.
+     */
+    public static void applySettings(Settings settings) {
+        commitSettings(settings, true);
+    }
+
+    /** Commits a selection without monitor work when no active server can safely handle it. */
+    public static void applySettingsWithoutMonitor(Settings settings) {
+        commitSettings(settings, false);
+    }
+
+    private static void commitSettings(Settings settings, boolean runMonitorAction) {
+        Objects.requireNonNull(settings, "settings");
+        boolean wasEnabled = config.enabled;
+        HeldBlockHandling previousHandling = HeldBlockHandling.fromConfig(
+                config.heldBlockHandling, HeldBlockHandling.AUTO_CLEAR);
+
+        config.enabled = settings.enabled();
+        config.heldBlockHandling = settings.heldBlockHandling().toConfigValue();
+        config.logRemovals = settings.logRemovals();
+        config.loggingEnabled = settings.loggingEnabled();
+        config.save();
+
+        if (!runMonitorAction || !settings.enabled()) {
+            return;
+        }
+        if (!wasEnabled) {
+            HELD_BLOCK_MONITOR.armPendingDiscovery();
+        } else if (previousHandling != settings.heldBlockHandling()) {
+            HELD_BLOCK_MONITOR.runResolutionPass();
+        }
+    }
+
+    /**
+     * Applies a command's enabled change immediately. Mod Menu uses {@link #applySettings(Settings)}
+     * so its other final choices are visible before discovery starts.
      */
     public static void setEnabled(boolean value) {
         boolean wasEnabled = config.enabled;
@@ -80,9 +124,8 @@ public final class EndermanGriefControlMod implements ModInitializer {
     }
 
     /**
-     * The single place held-block handling actually gets changed - see {@link #setEnabled}.
-     * Re-resolves immediately so the new mode applies to already-tracked holders right away,
-     * instead of waiting up to ~2 minutes for the next periodic resolution pass.
+     * Applies a command's carrier-mode change immediately, including a resolution pass. Mod Menu
+     * uses {@link #applySettings(Settings)} to apply its whole selection first.
      */
     public static void setHeldBlockHandling(HeldBlockHandling mode) {
         config.heldBlockHandling = mode.toConfigValue();

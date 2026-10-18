@@ -124,11 +124,8 @@ public final class EndermanGriefControlConfigScreen extends Screen {
     }
 
     /**
-     * Commits every pending change at once. "enabled" and "held-block handling" go through
-     * EndermanGriefControlMod's setters - the same ones EndermanCommand's subcommands call - since
-     * each has a HeldBlockMonitor side effect (re-arming discovery, re-resolving immediately) that
-     * only needs to be written once. The two logging flags have no such side effect, so they're
-     * saved directly.
+     * Applies the pending choices in Save & Quit order. Each setter saves and may act on the
+     * monitor before the later choices are applied.
      */
     private void applyPendingChanges() {
         EndermanGriefControlMod.setEnabled(pendingEnabled);
