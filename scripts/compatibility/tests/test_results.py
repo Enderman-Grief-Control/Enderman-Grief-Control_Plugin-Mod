@@ -71,6 +71,14 @@ class RateLimitTest(unittest.TestCase):
                            paused_after_line=10, paused_window=(1.0, 11.5))
         self.assertTrue(verdict.ok, verdict.problems)
         self.assertEqual(verdict.triggering_lines, (1, 11))
+        self.assertEqual(verdict.flush_count, 10)
+
+    def test_x1_flush_fits_the_contract_but_rolls_nothing_up(self):
+        # Only one denial before the pause: the flush is x1, so no suppression was observed.
+        verdict = evaluate(2, [Announcement(1, 0.0), Announcement(1, 12.0)], 10,
+                           paused_after_line=1, paused_window=(1.0, 11.5))
+        self.assertTrue(verdict.ok, verdict.problems)
+        self.assertEqual(verdict.flush_count, 1)
 
     def test_first_announcement_must_be_x1(self):
         self.assertFalse(evaluate(5, [Announcement(5, 0.0)], 10).ok)

@@ -22,6 +22,7 @@ class Verdict:
     ok: bool
     problems: tuple[str, ...]
     triggering_lines: tuple[int, ...]
+    flush_count: int | None = None  # count of the first announcement after the pause, if any
 
 
 def evaluate(denial_lines: int, announcements: list[Announcement], cooldown_s: float,
@@ -33,7 +34,8 @@ def evaluate(denial_lines: int, announcements: list[Announcement], cooldown_s: f
     ``paused_after_line`` is the number of lines logged before the denial source was paused
     for longer than the cooldown, during ``paused_window`` (monotonic start, end). Nothing may
     be announced inside the pause, and the first announcement after it must be triggered by the
-    next line, rolling up every pending denial.
+    next line, rolling up every pending denial. Its count is returned as ``flush_count``; x1 is
+    consistent with the contract but means no denial was held back, so nothing was rolled up.
     """
     problems: list[str] = []
     if not announcements:
@@ -57,12 +59,23 @@ def evaluate(denial_lines: int, announcements: list[Announcement], cooldown_s: f
         inside = [a for a in announcements if paused_window[0] < a.received_s < paused_window[1]]
         if inside:
             problems.append(f"{len(inside)} announcement(s) arrived while denials were paused")
+    flush_count = None
     if paused_after_line is not None:
-        after = [line for line in triggering if line > paused_after_line]
-        if not after:
-            problems.append("no announcement followed the paused interval")
-        elif after[0] != paused_after_line + 1:
-            problems.append(
-                f"first announcement after the pause covers line {after[0]}, expected "
-                f"line {paused_after_line + 1} to flush every pending denial")
-    return Verdict(not problems, tuple(problems), tuple(triggering))
+        flush_count, problem = _flush_after_pause(triggering, announcements, paused_after_line)
+        if problem:
+            problems.append(problem)
+    return Verdict(not problems, tuple(problems), tuple(triggering), flush_count)
+
+
+def _flush_after_pause(triggering: list[int], announcements: list[Announcement],
+                       paused_after_line: int) -> tuple[int | None, str | None]:
+    """Return the first post-pause announcement's count and any contract problem with it."""
+    after = [(line, announcement.count) for line, announcement in zip(triggering, announcements)
+             if line > paused_after_line]
+    if not after:
+        return None, "no announcement followed the paused interval"
+    line, count = after[0]
+    if line != paused_after_line + 1:
+        return count, (f"first announcement after the pause covers line {line}, expected "
+                       f"line {paused_after_line + 1} to flush every pending denial")
+    return count, None

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from egc_compat.manifest import load_manifest, select
 from egc_compat.results import verify_evidence
-from egc_compat.server_row import Limits, ServerRow
+from egc_compat.server_row import Limits, ServerRow, StageBlocked
 
 MANIFEST = Path(__file__).resolve().parents[1] / "manifest.json"
 SLEEPER = [sys.executable, "-c", "import time; time.sleep(60)"]
@@ -67,6 +67,50 @@ class RowSafetyTest(unittest.TestCase):
         self.assertEqual(len(runner_log), 1)
         self.assertEqual(verify_evidence(row.out_dir, result), [])
         self.assertNotEqual(result["overall"], "pass")
+
+    def announcement_state(self, flush_count, ok=True):
+        def chat(text):
+            return {"CompatOp": text, "CompatGuest": text}
+
+        verdict = {"ok": ok, "problems": [] if ok else ["fixture"], "counts": [1, flush_count],
+                   "triggering_lines": [1, 1 + flush_count], "flush_count": flush_count}
+        return {"cooldown": {"first": chat("[Enderman] Denied pickup x1."),
+                             "verdicts": {"CompatOp": verdict, "CompatGuest": dict(verdict)}},
+                "placement_chat": chat("[Enderman] Denied placement x1."),
+                "alert_chat": chat("[Enderman] holding a block at (8, 100, 8)."),
+                "clear_chat": chat("[Enderman] holding block cleared x1.")}
+
+    def test_cooldown_without_a_held_back_denial_is_blocked_not_passed(self):
+        row = self.make_row()
+        row.state.update(self.announcement_state(flush_count=1))
+        row.check_announcements()
+        check = row.checks["announcements_cooldown"]
+        self.assertEqual(check.status, "blocked")
+        self.assertIn("held back by the cooldown", check.reason)
+
+    def test_cooldown_with_a_rolled_up_flush_passes(self):
+        row = self.make_row()
+        row.state.update(self.announcement_state(flush_count=4))
+        row.check_announcements()
+        self.assertEqual(row.checks["announcements_cooldown"].status, "pass")
+
+    def test_cooldown_contract_violation_still_fails(self):
+        row = self.make_row()
+        row.state.update(self.announcement_state(flush_count=1, ok=False))
+        row.check_announcements()
+        self.assertEqual(row.checks["announcements_cooldown"].status, "fail")
+
+    def test_restart_killed_by_the_watchdog_is_a_timeout_not_a_failed_start(self):
+        row = self.make_row()
+        row.deadline_hit.set()
+        row.stop_server = lambda run_index: 0
+        row.start_server = lambda run_index, check: False
+        row.server_runs = [{"run": 2, "exit_code": 1}]
+        check = row.checks["persistence"].start()
+        with self.assertRaises(StageBlocked) as raised:
+            row.restart(check)
+        self.assertEqual(raised.exception.failure_class, "timeout_or_no_observation")
+        self.assertFalse([assertion for assertion in check.assertions if not assertion["ok"]])
 
     def test_watchdog_stops_owned_processes_at_the_row_deadline(self):
         row = self.make_row(row_s=0.5)

@@ -42,7 +42,7 @@ Other entry points:
 5. Runs the checks below, including one clean stop and restart on the same jar.
 6. Stops the server and kills only processes this run started. Termination, RCON closing, and password redaction run as independent steps, so a failure in one never skips the others. It then verifies the install tree and the Mojang jar, closes every log, and hashes the evidence files. After `result.json` is written, every recorded digest is checked again against the saved bytes.
 
-The whole-row limit (`row_s`, default 20 minutes) is enforced by a watchdog thread. At the deadline it closes RCON and kills the owned processes, which unblocks any waiting call. The row is then reported as `blocked (timeout_or_no_observation)` with the usual cleanup and result. `matrix.py` adds an outer per-row limit (`--row-timeout`, default 1500 s) that kills the row's whole process tree.
+The whole-row limit (`row_s`, default 20 minutes) is enforced by a watchdog thread. At the deadline it closes RCON and kills the owned processes, which unblocks any waiting call. The row is then reported as `blocked (timeout_or_no_observation)` with the usual cleanup and result. `matrix.py` adds an outer per-row limit (`--row-timeout`, default 1500 s) that kills the row's whole process tree, then redacts that row's RCON password, because the killed run cannot. Ctrl+C does the same. A row killed this way has no `result.json` and is listed as `blocked`.
 
 | Check | Passes only when |
 | --- | --- |
@@ -53,9 +53,9 @@ The whole-row limit (`row_s`, default 20 minutes) is enforced by a watchdog thre
 | `other_mob` | A sheep turns grass into dirt with protection on, so the plugin has not suppressed all mob griefing. |
 | `commands_permissions` | The guest is denied; the operator's status, toggle, set, carrier-policy, and reload commands answer correctly; RCON settings match the config file on disk. |
 | `persistence` | Non-default settings appear in status and on disk, survive a reload, and survive a restart. |
-| `announcements_cooldown` | Both clients get `x1` for the first pickup denial, nothing while denials are paused past the 10-second cooldown, and then one message with the full pending count. Placement, alert, and clear announcements also reach both clients. |
+| `announcements_cooldown` | Both clients get `x1` for the first pickup denial. At least one more denial is held back inside the 10-second cooldown, nothing is announced while denials are paused past it, and the next denial brings one message with the full pending count (`x2` or more). Placement, alert, and clear announcements also reach both clients. |
 
-If an observed contradiction occurs, the check is `fail`. A changed arena counts as a contradiction even when no denial was logged. If no attributable attempt happens within the limits (three fresh trials of at most 30 seconds or 20,000 ticks each), the check is `blocked`, never `pass`. When `startup` fails, every later check is blocked.
+If an observed contradiction occurs, the check is `fail`. A changed arena counts as a contradiction even when no denial was logged. If no attributable attempt happens within the limits (three fresh trials of at most 30 seconds or 20,000 ticks each), the check is `blocked`, never `pass`. An `x1` flush after the cooldown is also `blocked`: it fits the contract, but no denial was held back, so suppression and roll-up were not observed. When `startup` fails, every later check is blocked.
 
 ## Results
 
@@ -117,8 +117,8 @@ These offline tests cover:
 - Path containment for traversal, absolute, drive, and junction or symlink escapes.
 - Download size and deadline limits.
 - Install verification against official hashes, including a tampered library, an unlisted file, and a tampered launch jar.
-- Cleanup when the server stop fails, the strict jar-identity check, evidence digests after `finish`, and the row watchdog.
-- The false-pass guards and the rate-limit model.
+- Cleanup when the server stop fails, the strict jar-identity check, evidence digests after `finish`, the row watchdog (including during the restart), and the matrix outer-limit kill and redaction.
+- The false-pass guards, including an `x1` cooldown flush, and the rate-limit model.
 - Platform parsing and RCON framing, size, and deadline limits.
 - Process-tree cleanup, written so it stays safe when an assertion fails.
 - Client-form identity and gating rules, the client preflight, and the CLI's blocked paths.

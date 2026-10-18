@@ -22,24 +22,47 @@ sys.path.insert(0, str(HERE))
 
 from egc_compat.manifest import MINECRAFT_VERSIONS  # noqa: E402
 from egc_compat.procs import kill_tree  # noqa: E402
+from egc_compat.server_row import redact_rcon_password  # noqa: E402
 
 
-def run_row(command: list[str], timeout_s: float) -> int | None:
-    """Run one row; past the outer limit, kill its whole process tree (servers and clients too)."""
+def stop_row(process: subprocess.Popen, row_out: Path) -> str | None:
+    """Kill a row's whole process tree, then redact the RCON password the killed run could not."""
+    problem = kill_tree(process.pid)
+    process.wait(30)
+    redact_rcon_password(row_out / "server" / "server.properties")
+    return problem
+
+
+def run_row(command: list[str], timeout_s: float, row_out: Path) -> tuple[int | None, str | None]:
+    """Run one row; past the outer limit, kill its whole process tree (servers and clients too).
+
+    Returns the exit code (None when killed) and any problem stopping the process tree.
+    """
     process = subprocess.Popen(command, start_new_session=sys.platform != "win32",
                                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0)
     try:
-        return process.wait(timeout_s)
+        return process.wait(timeout_s), None
     except subprocess.TimeoutExpired:
         print(f"row exceeded the outer {timeout_s:g}s limit; killing its process tree", flush=True)
-        kill_tree(process.pid)
-        process.wait(30)
-        return None
+        return None, stop_row(process, row_out)
     except KeyboardInterrupt:
         # The row runs in its own process group, so it does not see Ctrl+C itself.
-        kill_tree(process.pid)
-        process.wait(30)
+        stop_row(process, row_out)
         raise
+
+
+def row_record(minecraft: str, out: Path, row_out: Path, code: int | None, problem: str | None) -> dict:
+    """Summarize one row from its result.json; a row without one is blocked, never passed."""
+    result_path = row_out / "result.json"
+    if result_path.exists():
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+        return {"minecraft": minecraft, "overall": result["overall"], "failure_class": result.get("failure_class"),
+                "checks": {name: check["status"] for name, check in result["checks"].items()},
+                "result": str(result_path.relative_to(out))}
+    note = (f"run.py exited {code} without a result" if code is not None
+            else "killed at the outer row limit before writing a result")
+    return {"minecraft": minecraft, "overall": "blocked", "failure_class": "harness_or_protocol",
+            "checks": {}, "result": None, "note": f"{note}; {problem}" if problem else note}
 
 
 def main() -> int:
@@ -68,17 +91,8 @@ def main() -> int:
         if args.artifact:
             command += ["--artifact", args.artifact]
         print(f"=== {args.platform}/{args.side}/{minecraft}", flush=True)
-        code = run_row(command, args.row_timeout)
-        result_path = row_out / "result.json"
-        if result_path.exists():
-            result = json.loads(result_path.read_text(encoding="utf-8"))
-            rows.append({"minecraft": minecraft, "overall": result["overall"],
-                         "failure_class": result.get("failure_class"),
-                         "checks": {name: check["status"] for name, check in result["checks"].items()},
-                         "result": str(result_path.relative_to(out))})
-        else:
-            rows.append({"minecraft": minecraft, "overall": "blocked", "failure_class": "harness_or_protocol",
-                         "checks": {}, "result": None, "note": f"run.py exited {code} without a result"})
+        code, problem = run_row(command, args.row_timeout, row_out)
+        rows.append(row_record(minecraft, out, row_out, code, problem))
     (out / "matrix.json").write_text(json.dumps({"platform": args.platform, "side": args.side, "rows": rows},
                                                 indent=2) + "\n", encoding="utf-8")
     lines = [f"# {args.platform}/{args.side} matrix", "", "| Minecraft | Overall | Failure class | Result |",

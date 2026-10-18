@@ -58,6 +58,9 @@ FORCELOAD = "forceload add 0 0 31 15"
 OP_NAME = "CompatOp"
 GUEST_NAME = "CompatGuest"
 WORLD_TIME = 18000  # midnight: Endermen do not teleport away from the arena at night
+# A denial meant to be held back by the cooldown must be logged at least this long before the
+# cooldown ends, counted from when the clients received the first announcement.
+COOLDOWN_MARGIN_S = 2.0
 
 # "Test passed, count: N" before 1.21.11; "Test passed. Count: N" from 1.21.11. Anything else blocks.
 TEST_PASSED = re.compile(r"^Test passed(?:(?:, count|\. Count): (\d+))?\.?$")
@@ -70,6 +73,7 @@ MIXIN_ERROR = re.compile(r"(MixinApplyError|InvalidInjectionException|InvalidMix
 FABRIC_RESOLUTION_ERROR = re.compile(r"(Incompatible mods found|Mod resolution failed|"
                                      r"requires .* which is missing|Some of your mods are incompatible)")
 RCON_READY = re.compile(r"RCON running on")
+RCON_PASSWORD_LINE = re.compile(r"^rcon\.password=[^\r\n]*", re.M)
 
 
 class StageBlocked(Exception):
@@ -124,6 +128,17 @@ def in_box(coords: tuple[int, int, int], low: tuple[int, int, int], high: tuple[
 
 def box(low: tuple[int, int, int], high: tuple[int, int, int]) -> str:
     return " ".join(str(value) for value in (*low, *high))
+
+
+def redact_rcon_password(properties: Path) -> bool:
+    """Redact by key, for a workspace whose own run was killed before it could; True if changed."""
+    if not properties.exists():
+        return False
+    text = properties.read_bytes().decode("utf-8")  # bytes keep the file's own line endings
+    redacted = RCON_PASSWORD_LINE.sub("rcon.password=REDACTED", text)
+    if redacted != text:
+        properties.write_bytes(redacted.encode("utf-8"))
+    return redacted != text
 
 
 def pos(coords: tuple[int, int, int]) -> str:
@@ -853,7 +868,7 @@ class ServerRow:
         check.finish()
 
     def probe_pickup_cooldown(self) -> None:
-        """Pause the pickup Enderman past the cooldown, then trigger one more denial."""
+        """Hold back at least one denial inside the cooldown, pause past it, then trigger a flush."""
         pickup = self.state.get("pickup")
         if not pickup:
             return
@@ -863,8 +878,18 @@ class ServerRow:
         self.state["cooldown"] = record
         if not all(first.values()):
             return
+        announced = max(event.monotonic for event in first.values())
         pause_start = pickup["frozen_mono"] + self.limits.settle_s
-        resume_at = max(event.monotonic for event in first.values()) + self.limits.cooldown_s + 1.0
+        if len(self.denials("pickup", 0, False)) < 2:
+            # The pickup trial froze the Enderman on its first denial, so nothing is pending yet.
+            # Let it try again inside the cooldown; the flush must then roll up a held-back denial.
+            self.set_ai(tag, True)
+            window_s = announced + self.limits.cooldown_s - COOLDOWN_MARGIN_S - time.monotonic()
+            top_up = self.advance(self.limits.trial_ticks, max(0.0, window_s), freeze_tag=tag,
+                                  stop_when=lambda: len(self.denials("pickup", 0, False)) >= 2)
+            record["held_back_progress"] = top_up
+            pause_start = top_up["frozen_mono"] + self.limits.settle_s
+        resume_at = announced + self.limits.cooldown_s + 1.0
         time.sleep(max(0.0, resume_at - time.monotonic()))
         lines_before = len(self.denials("pickup", 0, False))
         pause_end = time.monotonic()
@@ -889,7 +914,8 @@ class ServerRow:
                                paused_window=(pause_start, pause_end))
             verdicts[name] = {"ok": verdict.ok, "problems": list(verdict.problems),
                               "counts": [a.count for a in announcements],
-                              "triggering_lines": list(verdict.triggering_lines)}
+                              "triggering_lines": list(verdict.triggering_lines),
+                              "flush_count": verdict.flush_count}
         record["verdicts"] = verdicts
 
     def check_placement(self) -> None:
@@ -1107,6 +1133,9 @@ class ServerRow:
             startup.check("run 1 stopped cleanly", exit_code == 0, 0, exit_code)
         target = startup if startup is not None else check
         if not self.start_server(2, target):
+            if self.deadline_hit.is_set():
+                # The watchdog killed the restarting server; that is not a startup failure.
+                raise StageBlocked(self.deadline_reason(), "timeout_or_no_observation")
             target.check("run 2: server reached Done", False, "Done line",
                          f"exit code {self.server_runs[-1].get('exit_code')}")
             raise StageBlocked("server did not restart", "unclassified")
@@ -1118,18 +1147,25 @@ class ServerRow:
         for name in self.bots:
             self.cmd(f"tp {name} {CLIENT_SPOT}")
 
+    @staticmethod
+    def record_cooldown(check: Check, cooldown: dict[str, Any] | None) -> list[str]:
+        """Assert the pickup cooldown verdicts; return the observations that are missing."""
+        if not cooldown or "verdicts" not in cooldown:
+            return ["pickup denial/cooldown"]
+        check.observe("pickup cooldown probe", **{k: v for k, v in cooldown.items() if k != "verdicts"})
+        missing = []
+        for name, verdict in cooldown["verdicts"].items():
+            check.check(f"{name}: pickup announcements follow the cooldown/roll-up contract", verdict["ok"],
+                        "x1 first, nothing inside the pause, then x<pending> on the next denial",
+                        verdict)
+            # An x1 flush fits the contract but shows no suppression or roll-up: missing evidence.
+            if verdict["ok"] and (verdict.get("flush_count") or 0) < 2:
+                missing.append(f"a pickup denial held back by the cooldown ({name})")
+        return missing
+
     def check_announcements(self) -> None:
         check = self.checks["announcements_cooldown"].start()
-        missing = []
-        cooldown = self.state.get("cooldown")
-        if not cooldown or "verdicts" not in cooldown:
-            missing.append("pickup denial/cooldown")
-        else:
-            check.observe("pickup cooldown probe", **{k: v for k, v in cooldown.items() if k != "verdicts"})
-            for name, verdict in cooldown["verdicts"].items():
-                check.check(f"{name}: pickup announcements follow the cooldown/roll-up contract", verdict["ok"],
-                            "x1 first, nothing inside the pause, then x<pending> on the next denial",
-                            verdict)
+        missing = self.record_cooldown(check, self.state.get("cooldown"))
         for label, key, expected in (("placement denial", "placement_chat", "[Enderman] Denied placement x1."),
                                      ("carrier alert", "alert_chat", None),
                                      ("carrier clear", "clear_chat", "[Enderman] holding block cleared x1.")):
