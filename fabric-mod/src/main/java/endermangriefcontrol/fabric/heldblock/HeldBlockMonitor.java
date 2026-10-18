@@ -67,8 +67,20 @@ public final class HeldBlockMonitor {
             server = startedServer;
             armPendingDiscovery();
         });
+        ServerLifecycleEvents.SERVER_STOPPING.register(this::onServerStopping);
         ServerTickEvents.END_SERVER_TICK.register(this::onServerTick);
         ServerLivingEntityEvents.AFTER_DEATH.register(this::onEntityDeath);
+    }
+
+    private void onServerStopping(MinecraftServer stoppingServer) {
+        if (server != stoppingServer) {
+            return;
+        }
+
+        server = null;
+        knownHolders.clear();
+        tickCounter = 0;
+        pendingEligibilityCheck = false;
     }
 
     /**
@@ -128,6 +140,10 @@ public final class HeldBlockMonitor {
     }
 
     private void onServerTick(MinecraftServer tickedServer) {
+        if (server != tickedServer) {
+            return;
+        }
+
         tickCounter++;
 
         if (pendingEligibilityCheck
