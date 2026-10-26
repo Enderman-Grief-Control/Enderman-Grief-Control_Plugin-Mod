@@ -98,6 +98,8 @@ Notes from pinning, 2026-10-18:
 - The pinned `minecraft-data` treats 1.21.2 and 1.21.7 as 1.21 (protocol 767). Those rows therefore connect as 1.21.3 (protocol 768) and 1.21.8 (protocol 772). The negotiated protocol is recorded, and a mismatch causes a failed login, never a pass.
 - Minecraft 1.21.11 renamed game rules to snake case. The `snake-case-gamerules` adapter is used there; setup reads each rule back and blocks the run if the name or value does not match.
 
+Mod Menu pins, 2026-10-19: each Fabric client row pins the newest Modrinth release of Mod Menu that lists that exact Minecraft version, as a `dependency` artifact: 11.0.5 (1.21, 1.21.1), 12.0.1 (1.21.2, 1.21.3), 13.0.4 (1.21.4), 14.0.2 (1.21.5), 15.0.2 (1.21.6-1.21.8), 16.0.1 (1.21.9, 1.21.10), and 17.0.1 (1.21.11). Modrinth lists Fabric API and Placeholder API as Mod Menu requirements. Each jar bundles Placeholder API and the Fabric API modules its descriptor names, and the client rows install no separate Fabric API. Without Fabric API, 16.0.1 does not resolve: its bundled `fabric-resource-loader-v0` requires `fabric-resource-loader-v1`, which it does not bundle.
+
 ## Implementation notes
 
 - **Client game mode:** the clients play in creative mode. Paper's entity activation range does not keep mobs near a spectator fully active, so a sheep beside one never ate grass. Endermen cannot target creative players.

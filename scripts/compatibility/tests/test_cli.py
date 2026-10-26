@@ -78,9 +78,10 @@ class CliTest(unittest.TestCase):
             self.assertEqual(result["overall"], "blocked")
             self.assertTrue(result["run_errors"])
 
-    def client_form(self, root: str, minecraft: str = "1.21") -> tuple[Path, dict]:
+    def client_form(self, root: str, minecraft: str = "1.21", manifest: Path = run.HERE / "manifest.json"
+                    ) -> tuple[Path, dict]:
         template_dir = Path(root) / "form"
-        invoke("--platform", "fabric", "--side", "client", "--minecraft", minecraft,
+        invoke("--manifest", str(manifest), "--platform", "fabric", "--side", "client", "--minecraft", minecraft,
                "--client-evidence-template", "--out", str(template_dir))
         form_path = template_dir / "client-evidence.json"
         (template_dir / "latest.log").write_text("client log", encoding="utf-8")
@@ -89,10 +90,11 @@ class CliTest(unittest.TestCase):
             entry.update(status="pass", observation="observed", evidence=["latest.log"])
         return form_path, form
 
-    def run_form(self, root: str, form_path: Path, form: dict, minecraft: str = "1.21") -> dict:
+    def run_form(self, root: str, form_path: Path, form: dict, minecraft: str = "1.21",
+                 manifest: Path = run.HERE / "manifest.json") -> dict:
         form_path.write_text(json.dumps(form), encoding="utf-8")
         out = Path(root) / "run"
-        invoke("--platform", "fabric", "--side", "client", "--minecraft", minecraft,
+        invoke("--manifest", str(manifest), "--platform", "fabric", "--side", "client", "--minecraft", minecraft,
                "--client-evidence", str(form_path), "--out", str(out))
         return json.loads((out / "result.json").read_text(encoding="utf-8"))
 
@@ -112,11 +114,28 @@ class CliTest(unittest.TestCase):
 
     def test_mod_menu_pass_needs_a_pinned_mod_menu_jar(self):
         with tempfile.TemporaryDirectory() as root:
-            form_path, form = self.client_form(root)
-            result = self.run_form(root, form_path, form)
+            data = json.loads(run.HERE.joinpath("manifest.json").read_text(encoding="utf-8"))
+            data["targets"]["fabric/client/1.21"]["mod_menu_artifact_id"] = None
+            manifest = Path(root) / "manifest.json"
+            manifest.write_text(json.dumps(data), encoding="utf-8")
+            form_path, form = self.client_form(root, manifest=manifest)
+            result = self.run_form(root, form_path, form, manifest=manifest)
             self.assertEqual(result["checks"]["mod_menu_load"]["status"], "blocked")
             self.assertIn("pins no Mod Menu jar", result["checks"]["mod_menu_load"]["reason"])
             self.assertNotEqual(result["overall"], "pass")
+
+    def test_mod_menu_pass_needs_the_pinned_jar_reported(self):
+        with tempfile.TemporaryDirectory() as root:
+            form_path, form = self.client_form(root)
+            self.assertEqual(form["environment"]["mod_menu_artifact_id"], "modmenu-11.0.5")
+            form["environment"]["mod_menu_sha256"] = "0" * 64
+            result = self.run_form(root, form_path, form)
+            self.assertEqual(result["checks"]["mod_menu_load"]["status"], "blocked")
+            self.assertIn("does not report the pinned Mod Menu jar", result["checks"]["mod_menu_load"]["reason"])
+        with tempfile.TemporaryDirectory() as root:
+            form_path, form = self.client_form(root)
+            result = self.run_form(root, form_path, form)
+            self.assertEqual(result["checks"]["mod_menu_load"]["status"], "pass")
 
     def test_any_recorded_extended_failure_rejects_the_row(self):
         with tempfile.TemporaryDirectory() as root:  # 1.21.4 does not require extended checks

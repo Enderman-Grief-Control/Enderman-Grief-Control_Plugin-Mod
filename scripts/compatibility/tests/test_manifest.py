@@ -94,6 +94,20 @@ class ValidationTest(unittest.TestCase):
         self.assertEqual([key for key, required in flags.items() if required],
                          ["fabric/client/1.21", "fabric/client/1.21.5", "fabric/client/1.21.11"])
 
+    def test_every_client_row_pins_a_mod_menu_release_for_that_version(self):
+        data = committed()
+        for key, target in data["targets"].items():
+            if "/client/" not in key:
+                continue
+            mod_menu = data["artifacts"][target["mod_menu_artifact_id"]]
+            self.assertEqual((mod_menu["kind"], mod_menu["descriptor"]["id"]), ("dependency", "modmenu"), key)
+            self.assertIn(key.split("/")[2], mod_menu["game_versions"], key)
+
+    def test_mod_menu_pin_must_name_a_fabric_dependency(self):
+        data = committed()
+        data["targets"]["fabric/client/1.21"]["mod_menu_artifact_id"] = "fabric-1.2.0"
+        self.assertTrue(any("must name a Fabric dependency artifact" in error for error in validate(data)))
+
     def test_boolean_is_not_an_integer(self):
         data = committed()
         data["targets"]["paper/server/1.21"]["size"] = True
