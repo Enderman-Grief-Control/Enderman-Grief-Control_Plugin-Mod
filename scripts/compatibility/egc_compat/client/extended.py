@@ -45,6 +45,8 @@ SAVE = "Save & Quit"
 SERVER_THREAD = "Server thread"
 SAVED_VALUES = {"prevent": "ON", "holders": "Alert", "removals": "ON", "denied": "ON"}
 WORLDS = {"A": ("egc-world-a", 1), "B": ("egc-world-b", 2)}
+UI_GAME_DIR = "game-ui"
+UI_PACK = "egcui"
 # The state of a player who had protection off: saved OFF / Auto-Clear.
 INITIAL_CONFIG = {"enabled": False, "loggingEnabled": True, "logRemovals": True, "denialRateLimitSeconds": 10,
                   "heldBlockHandling": "auto-clear"}
@@ -52,7 +54,7 @@ LABELS = {"prevent": "Prevent Enderman Grief", "holders": "Stuck Holders", "remo
           "denied": "Log Denied Attempts"}
 RESOLUTION_PERIOD_TICKS = 2400  # HeldBlockMonitor: a periodic discovery/resolution pass every 120 s
 JOIN_WINDOW_TICKS = 600  # discovery "soon after join"
-REPORT_TICKS = 100
+REPORT_TICKS = scenario.HOLDER_REPORT_TICKS
 # Screens and widgets the flows need beyond the observer's own required members.
 FLOW_MEMBERS = ("class.PauseScreen", "class.TitleScreen", "class.SelectWorldScreen", "class.EditBox",
                 "class.AbstractSelectionList", "method.AbstractSelectionList.getSelected",
@@ -156,7 +158,7 @@ class ExtendedRun:
         self.row = row
         self.prepared = prepared
         self.checks = {name: row.checks[name].start() for name in row.extended_names}
-        self.game_dir = row.out_dir / "game-ui"
+        self.game_dir = row.out_dir / UI_GAME_DIR
         self.config = self.game_dir / "config" / CONFIG_NAME
         self.names: dict[str, str] = {}
         self.observer: dict[str, Any] = {}
@@ -186,7 +188,7 @@ class ExtendedRun:
         packs = {}
         for _key, (name, world_id) in WORLDS.items():
             world = install_world(self.prepared["world"], self.game_dir / "saves", name)
-            packs[name] = write_pack(world, "egcui", scenario.holder_functions(row.gamerules, world_id),
+            packs[name] = write_pack(world, UI_PACK, scenario.holder_functions(row.gamerules, world_id),
                                      row.files.pack["pack_version"], "EGC holder world")
         row.environment["extended"] = {"config_before": INITIAL_CONFIG, "worlds": dict(WORLDS.values()),
                                        "datapacks": packs}

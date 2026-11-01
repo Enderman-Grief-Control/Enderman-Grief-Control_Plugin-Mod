@@ -23,8 +23,10 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
+from egc_compat.client.world import path_problem  # noqa: E402
+from egc_compat.client_row import client_check_names, pack_paths  # noqa: E402
 from egc_compat.manifest import (DEFAULT_PROFILE, MINECRAFT_VERSIONS, Manifest, ManifestError,  # noqa: E402
-                                 load_manifest)
+                                 SelectionError, load_manifest, select)
 from egc_compat.procs import kill_tree  # noqa: E402
 from egc_compat.server_row import redact_rcon_password  # noqa: E402
 
@@ -85,6 +87,32 @@ def choose_profiles(manifest: Manifest, platform: str, side: str, spec: str) -> 
     return names
 
 
+def client_path_problems(manifest: Manifest, minecraft_versions: list[str], profiles: list[str], artifact: str | None,
+                         out: Path, extra: list[str]) -> list[str]:
+    """Every planned client run whose data-pack files would be too deep for Windows, checked before any run."""
+    control = "--control" in extra or "--negative-control" in extra
+    problems = []
+    for minecraft in minecraft_versions:
+        for profile in profiles:
+            selection = select(manifest, "fabric", "client", minecraft, artifact, profile)
+            extended = bool(client_check_names(selection, control, False)[1])
+            problems += [problem for path in pack_paths(out / minecraft / profile, extended)
+                         if (problem := path_problem(path))]
+    return problems
+
+
+def preflight(manifest: Manifest, args: argparse.Namespace, profiles: list[str], out: Path,
+              extra: list[str]) -> str | None:
+    """Why the matrix cannot start, found before any run (a client run folder too deep for Windows)."""
+    if args.platform != "fabric" or args.side != "client":
+        return None
+    try:
+        problems = client_path_problems(manifest, args.minecraft, profiles, args.artifact, out, extra)
+    except SelectionError as error:
+        return f"invalid: {error}"
+    return "\n".join(problems) or None
+
+
 def row_verdict(manifest: Manifest, platform: str, side: str, runs: dict[str, dict], fixture: bool) -> str:
     """Pass only when every documented profile for the side ran and passed."""
     if fixture:
@@ -140,8 +168,12 @@ def main() -> int:
     if out.exists() and any(out.iterdir()):
         print(f"--out {out} is not empty", file=sys.stderr)
         return 2
-    out.mkdir(parents=True, exist_ok=True)
     extra = args.run_args[1:] if args.run_args[:1] == ["--"] else args.run_args
+    problem = preflight(manifest, args, profiles, out, extra)
+    if problem:
+        print(problem, file=sys.stderr)
+        return 2
+    out.mkdir(parents=True, exist_ok=True)
     rows = []
     for minecraft in args.minecraft:
         runs = {}

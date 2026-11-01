@@ -1,16 +1,22 @@
+import gzip
 import json
 import tempfile
 import unittest
 from pathlib import Path
 
 from egc_compat.acquire import AcquisitionError
-from egc_compat.client import scenario
+from egc_compat.client import extended, scenario
 from egc_compat.client.allowlist import classify
 from egc_compat.client.launch import (ClientFiles, Library, check_profile, launch_arguments, library_key, maven_path,
                                       offline_uuid, plan_libraries, quote_arg, rules_allow)
-from egc_compat.client.world import pack_mcmeta, write_pack
-from egc_compat.client_row import client_check_names
+from egc_compat.client.world import ALLOW_COMMANDS_TAG, allow_commands, pack_mcmeta, path_problem, write_pack
+from egc_compat.client_row import client_check_names, pack_paths
 from egc_compat.manifest import load_manifest, select
+
+GAMERULES = {"mob_spawning": "a", "daylight_cycle": "b", "mob_griefing": "c", "random_tick_speed": "d"}
+# 10F4's client matrix folder: the deepest run folder the documented command made from this checkout.
+MATRIX_10F4 = Path("C:/Temp/CS/MyWork/Professional/Enderman-Grief-Control/Enderman-Grief-Control_Plugin-Mod/"
+                   "test-servers/compat-runs/matrix-10f4-fabric-client-1.2.1")
 
 MANIFEST = Path(__file__).resolve().parents[1] / "manifest.json"
 TARGET = {"profile_id": "fabric-loader-0.19.5-1.21", "loader_main_class": "net.fabricmc.loader.impl.launch.knot.KnotClient",
@@ -127,6 +133,29 @@ class WorldTest(unittest.TestCase):
             with self.assertRaises(AcquisitionError):
                 write_pack(Path(root) / ("x" * 240), "egc", {"placement_start": []}, {"data": 48}, "d")
 
+    def test_allow_commands_sets_the_one_tag_and_nothing_else(self):
+        nbt = b"\x0a\x00\x00\x0a\x00\x04Data" + ALLOW_COMMANDS_TAG + b"\x00\x03\x00\x07version\x00\x00\x00\x13\x00\x00"
+        with tempfile.TemporaryDirectory() as root:
+            world = Path(root)
+            (world / "level.dat").write_bytes(gzip.compress(nbt))
+            record = allow_commands(world)
+            self.assertEqual(gzip.decompress((world / "level.dat").read_bytes()),
+                             nbt.replace(ALLOW_COMMANDS_TAG + b"\x00", ALLOW_COMMANDS_TAG + b"\x01"))
+            self.assertNotEqual(record["level_dat_before"], record["level_dat_after"])
+            for wrong in (nbt.replace(ALLOW_COMMANDS_TAG, b""), nbt + ALLOW_COMMANDS_TAG + b"\x00"):
+                (world / "level.dat").write_bytes(gzip.compress(wrong))
+                with self.assertRaises(ValueError):
+                    allow_commands(world)
+
+    def test_documented_client_matrix_fits_from_this_checkout(self):
+        # 10F4's missing-dependency runs were blocked at 255-258 characters with the old world name.
+        for version, profile, extended_run in (("1.21.10", "missing-dependency", False), ("1.21.11", "modmenu", True)):
+            paths = pack_paths(MATRIX_10F4 / version / profile, extended_run)
+            self.assertEqual(len(paths), 3 if extended_run else 1)
+            self.assertEqual([path_problem(path) for path in paths], [None] * len(paths))
+        deeper = pack_paths(MATRIX_10F4.with_name("x" * 60) / "1.21.10" / "missing-dependency", False)
+        self.assertIn("characters, over the 250 allowed", path_problem(deeper[0]))
+
 
 def log(*lines: str) -> list[str]:
     return list(lines)
@@ -203,14 +232,29 @@ class ScenarioTest(unittest.TestCase):
         self.assertEqual(scenario.refusal_end(STARTED), "integrated server started")
 
     def test_holder_worlds_keep_their_holders_on_their_own_row(self):
-        a = scenario.holder_functions({"mob_spawning": "a", "daylight_cycle": "b", "mob_griefing": "c",
-                                       "random_tick_speed": "d"}, 1)
-        b = scenario.holder_functions({"mob_spawning": "a", "daylight_cycle": "b", "mob_griefing": "c",
-                                       "random_tick_speed": "d"}, 2)
+        a = scenario.holder_functions(GAMERULES, 1)
+        b = scenario.holder_functions(GAMERULES, 2)
         self.assertIn(f"100 {scenario.holder_z(1)}.5", a["summon_holder"][0])
         self.assertIn(f"100 {scenario.holder_z(2)}.5", b["summon_holder"][0])
         self.assertNotEqual(scenario.holder_z(1), scenario.holder_z(2))
         self.assertTrue(any("time query gametime" in line for line in a["load"]))
+
+    def test_sprint_confirmation_and_report_lines(self):
+        # As logged by the 1.21 client in the first 10F5 development run.
+        self.assertTrue(scenario.SPRINTING.search("[14:12:52] [Server thread/INFO]: [EGCClient: The game is sprinting]"))
+        report = scenario.SPRINT_REPORT.search("[14:12:53] [Server thread/INFO]: Sprint completed with 4345 ticks per "
+                                               "second, or 0.23 ms per tick")
+        self.assertEqual(report.group(1), "4345")
+
+    def test_holder_worlds_report_every_20_ticks(self):
+        tick = scenario.holder_functions(GAMERULES, 1)["tick"]
+        self.assertIn("execute if score #t egc matches 20.. run function egc:report", tick)
+        self.assertEqual(extended.REPORT_TICKS, 20)
+        self.assertEqual(extended.JOIN_WINDOW_TICKS % extended.REPORT_TICKS, 0)
+
+    def test_function_names_used_for_the_path_check_match_the_packs(self):
+        self.assertEqual(tuple(scenario.core_functions(GAMERULES)), scenario.CORE_FUNCTIONS)
+        self.assertEqual(tuple(scenario.holder_functions(GAMERULES, 1)), scenario.HOLDER_FUNCTIONS)
 
 
 class AllowlistTest(unittest.TestCase):

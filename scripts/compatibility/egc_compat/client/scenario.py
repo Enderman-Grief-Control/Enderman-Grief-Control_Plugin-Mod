@@ -2,10 +2,12 @@
 
 The core scenario rebuilds the server rows' arena inside the integrated world and reports world
 state as ``EGC-RESULT`` chat lines, so the client log alone is the evidence: setup, one tagged
-Enderman left alone for 60 s (pickup), then four verified dirt holders checked every 30 s
-(placement), after restoring the arena from its reference copy so placement never depends on the
-pickup result. Data-pack functions run at permission level 2, below ``/tick``, so the client runs
-at normal speed. Verdicts here are the 10F form rules rewritten as assertions over parsed facts.
+Enderman left alone for 1,200 ticks (pickup), then four verified dirt holders checked every 600
+ticks (placement), after restoring the arena from its reference copy so placement never depends on
+the pickup result. Every wait counts ticks, so speed changes only how long a session takes.
+Data-pack functions run at permission level 2, below ``/tick``, so the harness itself types
+``/tick sprint`` once the setup is reported (see ``ClientRow.sprint``). Verdicts here are the 10F
+form rules rewritten as assertions over parsed facts.
 """
 
 from __future__ import annotations
@@ -23,9 +25,13 @@ PICKUP_TICKS = 1200  # 60 s at normal speed
 PLACEMENT_ROUND_TICKS = 600  # 30 s
 PLACEMENT_ROUNDS = 6
 PLACEMENT_START_TICKS = 40
+HOLDER_REPORT_TICKS = 20  # holder worlds report game time this often, so a monitor pass is placed within 1 s
 HOLDER_SPOTS = ("7.5 100 7.5", "9.5 100 9.5", "7.5 100 9.5", "9.5 100 7.5")
 HOLDERS = len(HOLDER_SPOTS)
-CORE_WORLD = "egc-client-check"
+CORE_WORLD = "egc"  # short: Windows MAX_PATH applies to the data-pack files under the run folder
+CORE_PACK = "egc"
+CORE_FUNCTIONS = ("load", "tick", "setup", "pickup_check", "placement_start", "placement_check")
+HOLDER_FUNCTIONS = ("load", "tick", "session_setup", "summon_holder", "report")
 SETUP_EXPECTED = {"arena": ARENA_BLOCKS, "grass": len(GRASS), "endermen": 1, "carry": 0, "rule_griefing": 1,
                   "rule_spawning": 0}
 INITIALIZED = re.compile(r"EndermanGriefControl has been initialized\.")
@@ -37,6 +43,8 @@ MODMENU_BROKEN = re.compile(r"provides a broken implementation of ModMenuApi")
 LEVEL = re.compile(r"^\[[\d:]+\] \[([^\]]+)/(WARN|ERROR|FATAL)\]")
 THREAD = re.compile(r"^\[[\d:]+\] \[([^\]]+)/[A-Z]+\]")
 SAVED = re.compile(r"All dimensions are saved")
+SPRINTING = re.compile(r"The game is sprinting")
+SPRINT_REPORT = re.compile(r"Sprint completed with ([\d.,]+) ticks per second")
 
 
 def joined_pattern(player: str) -> re.Pattern[str]:
@@ -149,8 +157,9 @@ def holder_functions(gamerules: dict[str, str], world_id: int) -> dict[str, list
     """A holder world: each session a player enters summons one fresh NoAI dirt holder.
 
     Holders of session N stand at x = 4 + 2N on the world's own row (z = 4 + 2 * world ID). Every
-    100 ticks the pack reports the world, session, holder counts, and game time, including the game
-    time at which this session's server started (the data pack loads when the server starts).
+    ``HOLDER_REPORT_TICKS`` ticks the pack reports the world, session, holder counts, and game time,
+    including the game time at which this session's server started (the data pack loads when the
+    server starts).
     """
     z = holder_z(world_id)
     return {
@@ -163,7 +172,7 @@ def holder_functions(gamerules: dict[str, str], world_id: int) -> dict[str, list
         "tick": ["execute if score #setup egc < #session egc if entity @a[limit=1] if loaded 8 100 8 "
                  "run function egc:session_setup",
                  "scoreboard players add #t egc 1",
-                 "execute if score #t egc matches 100.. run function egc:report"],
+                 f"execute if score #t egc matches {HOLDER_REPORT_TICKS}.. run function egc:report"],
         "session_setup": [
             "scoreboard players operation #setup egc = #session egc",
             *_setup_world(gamerules),

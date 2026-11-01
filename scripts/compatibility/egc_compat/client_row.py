@@ -4,8 +4,11 @@ An automated row launches the official client with the pinned Loader profile, of
 token), in a fresh game directory under the run's output, straight into a disposable flat world
 through quick play. The selected install profile's jars go into ``mods/``; a data pack rebuilds the
 server rows' arena and reports world state into the client log, which is the evidence. Core runs
-send no input to the game and never attach the screen observer, so they reflect the documented
-install exactly. The ``modmenu`` profile adds the four extended checks on rows that require them.
+install exactly the documented jars and never attach the screen observer. Their one input is a
+``/tick sprint`` chat command once the world is set up (maintainer decision, 2026-11-01): every
+scenario wait counts ticks, so it shortens the session without changing what is judged, and
+``--no-sprint`` keeps normal speed. The ``modmenu`` profile adds the four extended checks on rows
+that require them; those sessions always run at normal speed.
 
 Client rows need a Windows host with an interactive desktop: posted window messages and WM_CLOSE
 are Win32. On any other host every check is ``blocked (client_access)`` before anything launches.
@@ -32,7 +35,8 @@ from .client.allowlist import classify
 from .client.launch import (GUI_SCALE, PLAYER, WINDOW_SIZE, ClientAcquirer, ClientFiles, extract_natives,
                             launch_arguments, write_argfile)
 from .client.session import ClientSession
-from .client.world import install_world, template, write_pack
+from .client.ui import post_chat_command
+from .client.world import allow_commands, install_world, pack_file, template, write_pack
 from .jarinfo import read_descriptor
 from .limits import LimitSet
 from .manifest import Manifest, Selection
@@ -44,6 +48,7 @@ from .results import (CLIENT_CHECKS, CLIENT_CONTROL_CHECKS, CLIENT_CORE_CHECKS, 
 from .server_row import java_identity
 
 CONFIG_NAME = "no-enderman-grief.json"
+GAME_DIR = "game"
 # Denial logging on and carrier policy off, so placement denials are visible and nothing is cleared.
 CORE_CONFIG = {"enabled": True, "loggingEnabled": True, "logRemovals": True, "denialRateLimitSeconds": 10,
                "heldBlockHandling": "off"}
@@ -69,6 +74,8 @@ class ClientLimits(LimitSet):
     crash_exit_s: float = 45
     extended_s: float = 1500
     step_s: float = 20
+    sprint_ticks: int = 5000  # covers pickup (1,200), placement start (40), and six 600-tick rounds
+    sprint_confirm_s: float = 15
 
 
 class ClientBlocked(Exception):
@@ -92,6 +99,17 @@ def client_check_names(selection: Selection, control: bool, negative: bool) -> t
     return core, extended
 
 
+def pack_paths(run_dir: Path, extended: bool) -> list[Path]:
+    """The deepest data-pack file of each world a client run writes, for the Windows path check."""
+    paths = [pack_file(run_dir / GAME_DIR / "saves" / scenario.CORE_WORLD, scenario.CORE_PACK,
+                       max(scenario.CORE_FUNCTIONS, key=len))]
+    if extended:
+        from .client.extended import UI_GAME_DIR, UI_PACK, WORLDS
+        paths += [pack_file(run_dir / UI_GAME_DIR / "saves" / name, UI_PACK, max(scenario.HOLDER_FUNCTIONS, key=len))
+                  for name, _world_id in WORLDS.values()]
+    return paths
+
+
 def apply_verdict(check: Check, verdict: scenario.Verdict, failure_class: str = "unclassified") -> Check:
     status, reason, assertions = verdict
     for name, ok, expected, observed in assertions:
@@ -107,7 +125,7 @@ class ClientRow:
     def __init__(self, *, manifest: Manifest, selection: Selection, out_dir: Path, cache_dir: Path,
                  limits: ClientLimits, java: str, javac: str | None, control: bool, negative: bool, run_id: str,
                  command_line: list[str], limit_overrides: dict[str, Any], git: dict[str, Any],
-                 assets_from: Path | None = None):
+                 assets_from: Path | None = None, sprint: bool = True):
         self.manifest = manifest
         self.selection = selection
         self.target = selection.target
@@ -124,7 +142,8 @@ class ClientRow:
         self.limit_overrides = limit_overrides
         self.git = git
         self.assets_from = assets_from
-        self.game_dir = out_dir / "game"
+        self.sprint_requested = sprint
+        self.game_dir = out_dir / GAME_DIR
         self.evidence_dir = out_dir / "evidence"
         self.http = HttpLimits(limits.http_connect_s, limits.http_read_s, limits.http_retries)
         self.registry = ProcessRegistry()
@@ -328,25 +347,75 @@ class ClientRow:
             self.checks.block_unfinished("installed jars do not match the profile", "artifact")
             return
         world = install_world(prepared["world"], self.game_dir / "saves", scenario.CORE_WORLD)
-        self.environment["datapack"] = write_pack(world, "egc", scenario.core_functions(self.gamerules),
+        # Refusal and --control sessions end at or before setup; only the core scenario has waits to sprint.
+        sprint = self.sprint_requested and not refusal and not self.control
+        self.environment["sprint"] = {"enabled": sprint}
+        if sprint:
+            self.environment["sprint"].update(allow_commands(world))
+        self.environment["datapack"] = write_pack(world, scenario.CORE_PACK, scenario.core_functions(self.gamerules),
                                                   self.files.pack["pack_version"], "EGC client check")
         session = self.launch("core", scenario.CORE_WORLD)
-        if refusal:
-            end, timeout = scenario.refusal_end, self.limits.refusal_s
-        elif self.control:
-            end, timeout = scenario.setup_end, self.limits.control_s
-        else:
-            end, timeout = scenario.core_end, self.limits.core_s
-        reason = session.wait_for_end(end, timeout, self.deadline)
+        end, timeout = self.core_end_condition(refusal)
+        session_deadline = min(self.deadline, time.monotonic() + timeout)
+        if sprint:
+            self.start_sprint(session, session_deadline)
+        reason = session.wait_for_end(end, timeout, session_deadline)
         crashed = reason in ("crash or resolution failure", "crash", "Loader refusal")
         # Loader's error screen never exits on its own; a crash gets time to finish its report.
         lines = self.finish_session(session, crashed, crash_exit_s=5 if reason == "Loader refusal" else None)
+        if sprint:
+            report = next((line for line in lines if scenario.SPRINT_REPORT.search(line)), None)
+            self.environment["sprint"]["report"] = report[:200] if report else "none (the session ended first)"
         if self.deadline_hit.is_set():
             raise ClientBlocked(f"row time limit of {self.limits.row_s:g}s exceeded", "timeout_or_no_observation")
         if refusal:
             self.evaluate_refusal(lines, first)
         else:
             self.evaluate_core(lines, session)
+
+    def core_end_condition(self, refusal: bool) -> tuple[Any, float]:
+        """The core session's end condition and time limit for this mode."""
+        if refusal:
+            return scenario.refusal_end, self.limits.refusal_s
+        if self.control:
+            return scenario.setup_end, self.limits.control_s
+        return scenario.core_end, self.limits.core_s
+
+    def start_sprint(self, session: ClientSession, deadline: float) -> None:
+        """Type ``/tick sprint`` once the data pack has set up its world, and confirm it from the log.
+
+        Every wait in the core scenario counts ticks, so a sprint changes only how long the session
+        takes; one that never starts costs time, never a result. Nothing is resent: a lost key would
+        leave the session at normal speed, and a retry could only add input.
+        """
+        record = self.environment["sprint"]
+        ready = session.wait_until(scenario.setup_end, self.limits.core_s, deadline)
+        if ready != "setup reported" or not session.running():
+            record["outcome"] = f"not typed: {ready}"
+            self.say(f"sprint {record['outcome']}")
+            return
+        time.sleep(self.limits.settle_s)  # the loading screen closes after the setup report
+        from .client import win32
+        since = len(session.lines())
+        command = f"/tick sprint {self.limits.sprint_ticks}"
+        hwnd = win32.game_window(session.process.pid)
+        try:
+            if hwnd is None:
+                raise OSError("the game window was not found")
+            post_chat_command(hwnd, command)
+        except OSError as error:
+            record["outcome"] = f"not typed: {error}"
+            self.say(f"sprint {record['outcome']}")
+            return
+        record.update(command=command, typed_utc=utc_now())
+        found = session.wait_until(
+            lambda lines: next((line for line in lines[since:] if scenario.SPRINTING.search(line)), None),
+            self.limits.sprint_confirm_s, deadline)
+        if scenario.SPRINTING.search(found):
+            record.update(outcome="confirmed", confirmed_line=found[:200])
+        else:
+            record["outcome"] = f"not confirmed: {found}"
+        self.say(f"sprint {record['outcome']}")
 
     def run_extended(self, prepared: dict[str, Any]) -> None:
         startup = self.checks["client_startup"]

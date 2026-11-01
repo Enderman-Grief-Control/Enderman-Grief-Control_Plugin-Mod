@@ -57,6 +57,7 @@ class CliTest(unittest.TestCase):
             self.assertEqual(invoke(*base, "--side", "client", "--profile", "missing-dependency", "--control"), 2)
             self.assertEqual(invoke(*base, "--side", "server", "--profile", "modmenu"), 2)
             self.assertEqual(invoke(*base, "--side", "client", "--limit", "server_start_s=5"), 2)
+            self.assertEqual(invoke(*base, "--side", "server", "--no-sprint"), 2)
             self.assertFalse(Path(out).exists())
 
     def test_profile_listing(self):

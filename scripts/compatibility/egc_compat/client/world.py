@@ -2,11 +2,13 @@
 
 The template is generated once per server jar SHA-1 and settings, by the official server of the
 same version, and reused from the cache only while its level.dat still matches the recorded hash.
-Each run copies it into the client's own saves folder and adds the scenario's data pack.
+Each run copies it into the client's own saves folder and adds the scenario's data pack. A copy
+that the harness sprints through allows commands (the template, from a dedicated server, does not).
 """
 
 from __future__ import annotations
 
+import gzip
 import hashlib
 import json
 import shutil
@@ -27,6 +29,8 @@ WORLD_PROPERTIES = {
 }
 # Windows MAX_PATH applies to the nested data-pack files, so pack folders stay short.
 MAX_PACK_PATH = 250
+# level.dat's Data.allowCommands: NBT byte tag (type 1), name length 13, name, then the value.
+ALLOW_COMMANDS_TAG = b"\x01\x00\x0dallowCommands"
 
 
 def settings_key() -> str:
@@ -83,6 +87,34 @@ def install_world(template_world: Path, saves: Path, name: str) -> Path:
     return destination
 
 
+def allow_commands(world: Path) -> dict[str, str]:
+    """Set ``Data.allowCommands`` in an installed copy's level.dat, so its player may run ``/tick``.
+
+    The byte is patched in place in the decompressed NBT; the file must hold exactly one such tag.
+    Returns the level.dat SHA-256 before and after.
+    """
+    path = world / "level.dat"
+    before = hash_file(path)
+    data = bytearray(gzip.decompress(path.read_bytes()))
+    if data.count(ALLOW_COMMANDS_TAG) != 1:
+        raise ValueError(f"{path} does not hold exactly one allowCommands tag")
+    data[data.index(ALLOW_COMMANDS_TAG) + len(ALLOW_COMMANDS_TAG)] = 1
+    path.write_bytes(gzip.compress(bytes(data), mtime=0))
+    return {"level_dat_before": before, "level_dat_after": hash_file(path)}
+
+
+def pack_file(world: Path, folder: str, function: str) -> Path:
+    return world / "datapacks" / folder / "data" / "egc" / "function" / f"{function}.mcfunction"
+
+
+def path_problem(path: Path) -> str | None:
+    """Why ``path`` is too deep to write on Windows, or None."""
+    if len(str(path)) <= MAX_PACK_PATH:
+        return None
+    return (f"run directory too deep for Windows paths: {path} is {len(str(path))} characters, over the "
+            f"{MAX_PACK_PATH} allowed; use a shorter --out")
+
+
 def pack_mcmeta(pack_version: dict[str, Any], description: str) -> dict[str, Any]:
     """``pack_format`` before 1.21.9; from 1.21.9 the exact ``min_format``/``max_format`` pair."""
     if "data" in pack_version:
@@ -95,9 +127,9 @@ def write_pack(world: Path, folder: str, functions: dict[str, list[str]], pack_v
                description: str) -> dict[str, str]:
     """Write a data pack whose load/tick tags call ``<namespace>:load`` and ``:tick``; return file hashes."""
     root = world / "datapacks" / folder
-    longest = max(functions, key=len)
-    if len(str(root / f"data/egc/function/{longest}.mcfunction")) > MAX_PACK_PATH:
-        raise AcquisitionError(f"run directory too deep for Windows paths: {root}", "unsafe_path")
+    problem = path_problem(pack_file(world, folder, max(functions, key=len)))
+    if problem:
+        raise AcquisitionError(problem, "unsafe_path")
     files = {"pack.mcmeta": json.dumps(pack_mcmeta(pack_version, description), indent=2) + "\n",
              "data/minecraft/tags/function/load.json": json.dumps({"values": ["egc:load"]}) + "\n",
              "data/minecraft/tags/function/tick.json": json.dumps({"values": ["egc:tick"]}) + "\n"}

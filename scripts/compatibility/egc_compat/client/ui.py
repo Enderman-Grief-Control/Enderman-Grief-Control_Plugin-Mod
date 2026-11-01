@@ -6,6 +6,9 @@ coordinates with the reported sizes), and the step counts only once the observer
 next state. A step that is never confirmed raises ``UiBlocked``; the extended checks then become
 ``blocked (harness_or_protocol)``, never pass or fail. Every action is logged with the snapshot
 sequence numbers around it, and screenshots are kept as evidence.
+
+``post_chat_command`` is the one input a core session sends, without the observer: the game's own
+log confirms it (see ``ClientRow.sprint``).
 """
 
 from __future__ import annotations
@@ -24,7 +27,7 @@ from .observer import Snapshot, Snapshots
 KEYS = {
     "Escape": (0x1B, 0x01, False), "Enter": (0x0D, 0x1C, False), "Tab": (0x09, 0x0F, False),
     "F2": (0x71, 0x3C, False), "Backspace": (0x08, 0x0E, False), "Up": (0x26, 0x48, True),
-    "Down": (0x28, 0x50, True), "End": (0x23, 0x4F, True),
+    "Down": (0x28, 0x50, True), "End": (0x23, 0x4F, True), "T": (0x54, 0x14, False),
 }
 
 
@@ -63,6 +66,37 @@ def char_codes(text: str) -> list[int]:
     return [int.from_bytes(encoded[i:i + 2], "little") for i in range(0, len(encoded), 2)]
 
 
+def post_key(hwnd: int, name: str, hold_s: float = 0.06) -> None:
+    from . import win32
+    vk, scan, extended = KEYS[name]
+    down, up = key_lparams(scan, extended)
+    win32.post(hwnd, win32.WM_KEYDOWN, vk, down)
+    time.sleep(hold_s)
+    win32.post(hwnd, win32.WM_KEYUP, vk, up)
+
+
+def post_text(hwnd: int, text: str) -> None:
+    from . import win32
+    for code in char_codes(text):
+        win32.post(hwnd, win32.WM_CHAR, code, 1)
+        time.sleep(0.03)
+
+
+def post_chat_command(hwnd: int, command: str, open_s: float = 0.75) -> None:
+    """Open chat with T, type ``command`` (with its slash), and send it with Enter.
+
+    The chat key is handled on the next client tick, after its own character event has gone to no
+    screen, so the T is never typed; ``open_s`` gives the chat screen time to open first.
+    """
+    if not command.startswith("/"):
+        raise ValueError(f"not a command: {command!r}")
+    post_key(hwnd, "T")
+    time.sleep(open_s)
+    post_text(hwnd, command)
+    time.sleep(0.2)
+    post_key(hwnd, "Enter")
+
+
 class UiDriver:
     def __init__(self, pid: Callable[[], int | None], snapshots: Snapshots, game_dir: Path, evidence: Path,
                  say: Callable[[str], None], step_s: float = 20, retry_s: float = 4):
@@ -92,13 +126,7 @@ class UiDriver:
         return hwnd
 
     def key(self, name: str, hold_s: float = 0.06) -> None:
-        from . import win32
-        vk, scan, extended = KEYS[name]
-        down, up = key_lparams(scan, extended)
-        hwnd = self.window()
-        win32.post(hwnd, win32.WM_KEYDOWN, vk, down)
-        time.sleep(hold_s)
-        win32.post(hwnd, win32.WM_KEYUP, vk, up)
+        post_key(self.window(), name, hold_s)
         self.record({"action": "key", "key": name})
 
     def click(self, x: int, y: int, label: str) -> None:
@@ -123,11 +151,7 @@ class UiDriver:
         self.record({"action": "click", "x": x, "y": y, "target": label})
 
     def type_text(self, text: str) -> None:
-        from . import win32
-        hwnd = self.window()
-        for code in char_codes(text):
-            win32.post(hwnd, win32.WM_CHAR, code, 1)
-            time.sleep(0.03)
+        post_text(self.window(), text)
         self.record({"action": "type", "text": text})
 
     def screenshot(self, label: str) -> str | None:

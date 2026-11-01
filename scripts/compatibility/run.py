@@ -104,6 +104,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
                         help="client only: a launcher assets folder (holding objects/) to copy SHA-1-verified objects "
                              "from instead of downloading them")
     parser.add_argument("--javac", help="client only: javac for the screen observer (default: next to --java)")
+    parser.add_argument("--no-sprint", action="store_true",
+                        help="client only: run the core session at normal speed instead of typing /tick sprint "
+                             "once the world is set up")
     parser.add_argument("--client-evidence", type=Path,
                         help="client only: record the row from a manual evidence form instead of running it")
     parser.add_argument("--client-evidence-template", action="store_true",
@@ -148,7 +151,7 @@ def invocation_problem(args: argparse.Namespace, selection: Selection) -> str | 
     if args.side != "client":
         for option, name in ((args.negative_control, "--negative-control"), (args.client_evidence, "--client-evidence"),
                              (args.client_evidence_template, "--client-evidence-template"),
-                             (args.assets_from, "--assets-from")):
+                             (args.assets_from, "--assets-from"), (args.no_sprint, "--no-sprint")):
             if option:
                 return f"{name} applies to client rows only"
     if args.control and args.negative_control:
@@ -198,7 +201,7 @@ def run_client(args: argparse.Namespace, manifest: Manifest, selection: Selectio
                     limits=limits, java=args.java, javac=args.javac, control=args.control,
                     negative=args.negative_control, run_id=run_id, command_line=command_line,
                     limit_overrides=overrides, git=git_identity(),
-                    assets_from=args.assets_from.resolve() if args.assets_from else None)
+                    assets_from=args.assets_from.resolve() if args.assets_from else None, sprint=not args.no_sprint)
     try:
         return row.run()
     finally:

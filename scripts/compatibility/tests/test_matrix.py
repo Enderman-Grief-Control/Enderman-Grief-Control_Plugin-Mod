@@ -6,7 +6,8 @@ import unittest
 from pathlib import Path
 
 import matrix
-from egc_compat.manifest import load_manifest
+from egc_compat.client_row import pack_paths
+from egc_compat.manifest import MINECRAFT_VERSIONS, load_manifest
 from egc_compat.server_row import redact_rcon_password
 
 SLEEPER = [sys.executable, "-c", "import time; time.sleep(60)"]
@@ -48,6 +49,33 @@ class RowVerdictTest(unittest.TestCase):
 
     def test_fixture_rows_are_labeled_not_judged(self):
         self.assertEqual(self.verdict("server", {"missing-dependency": run("pass")}, fixture=True), "fixture")
+
+
+class ClientPathPreflightTest(unittest.TestCase):
+    def setUp(self):
+        self.manifest = load_manifest(MANIFEST)
+
+    def problems(self, out: Path, versions: list[str], profiles: list[str], extra: list[str] | None = None) -> list[str]:
+        return matrix.client_path_problems(self.manifest, versions, profiles, None, out, extra or [])
+
+    def test_a_folder_too_deep_for_windows_is_refused_before_any_run(self):
+        runs = Path("C:/Temp/CS/MyWork/Professional/Enderman-Grief-Control/Enderman-Grief-Control_Plugin-Mod/"
+                    "test-servers/compat-runs")
+        documented = ["standard", "modmenu", "missing-dependency"]
+        self.assertEqual(self.problems(runs / "matrix-10f4-fabric-client-1.2.1", list(MINECRAFT_VERSIONS), documented),
+                         [])
+        deep = self.problems(runs / ("m" * 60), ["1.21.10"], documented)
+        self.assertTrue(deep)
+        self.assertTrue(all("characters, over the 250 allowed" in problem for problem in deep))
+
+    def test_extended_worlds_are_checked_only_where_they_are_written(self):
+        core_tail, ui_tail, _ = (len(str(path)) for path in pack_paths(Path("."), True))
+        self.assertGreater(ui_tail, core_tail)
+        # <out>/1.21.11/modmenu/<tail> is len(out) + 17 + len(tail): the holder worlds go 1 over, the core world fits.
+        out = Path("C:/" + "r" * (250 - 17 - ui_tail + 1 - 3))
+        self.assertEqual(len(self.problems(out, ["1.21.11"], ["modmenu"])), 2)
+        self.assertEqual(self.problems(out, ["1.21.11"], ["modmenu"], ["--control"]), [])
+        self.assertEqual(self.problems(out, ["1.21.1"], ["modmenu"]), [])  # no extended checks on 1.21.1
 
 
 class MatrixKillTest(unittest.TestCase):

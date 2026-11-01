@@ -63,23 +63,26 @@ class ClientSession:
     def running(self) -> bool:
         return self.process is not None and self.process.running()
 
-    def wait_for_end(self, end: Callable[[list[str]], str | None], timeout_s: float,
-                     deadline: float | None = None) -> str:
-        """Poll the log until ``end`` names a reason, the process exits, or the time runs out."""
+    def wait_until(self, condition: Callable[[list[str]], str | None], timeout_s: float,
+                   deadline: float | None = None) -> str:
+        """Poll the log until ``condition`` names a reason, the process exits, or the time runs out."""
         limit = time.monotonic() + timeout_s
         if deadline is not None:
             limit = min(limit, deadline)
         while True:
             if not self.running():
-                reason = end(self.lines()) or "process exited"
-                break
-            reason = end(self.lines())
+                return condition(self.lines()) or "process exited"
+            reason = condition(self.lines())
             if reason:
-                break
+                return reason
             if time.monotonic() >= limit:
-                reason = "deadline"
-                break
+                return "deadline"
             time.sleep(0.5)
+
+    def wait_for_end(self, end: Callable[[list[str]], str | None], timeout_s: float,
+                     deadline: float | None = None) -> str:
+        """``wait_until`` the session's end condition, and record why and when it ended."""
+        reason = self.wait_until(end, timeout_s, deadline)
         self.record.end_reason = reason
         self.record.seconds_to_end = round(time.monotonic() - self._started, 1)
         return reason

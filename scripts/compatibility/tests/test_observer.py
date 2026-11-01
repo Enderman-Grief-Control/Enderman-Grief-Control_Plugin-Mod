@@ -4,7 +4,8 @@ import unittest
 from pathlib import Path
 
 from egc_compat.client import extended, observer
-from egc_compat.client.ui import UiBlocked, UiDriver, center, char_codes, gui_to_window, key_lparams, point_lparam
+from egc_compat.client.ui import (KEYS, UiBlocked, UiDriver, center, char_codes, gui_to_window, key_lparams,
+                                  point_lparam, post_chat_command)
 from egc_compat.results import Check
 
 # A slice of the real 1.21 shapes: Mojang names -> obfuscated names (ProGuard), then obfuscated ->
@@ -211,6 +212,12 @@ class InputEncodingTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             char_codes("a\nb")
 
+    def test_chat_command_opens_chat_with_t_and_must_be_a_command(self):
+        self.assertEqual(KEYS["T"], (0x54, 0x14, False))
+        self.assertEqual(char_codes("/tick sprint 5000"), [ord(ch) for ch in "/tick sprint 5000"])
+        with self.assertRaises(ValueError):
+            post_chat_command(0, "tick sprint 5000")  # refused before anything is posted
+
 
 def report(world: int, session: int, start: int, now: int, carrying: int = 1) -> str:
     return (f"[12:00:00] [Render thread/INFO]: [CHAT] EGC-RESULT holder world={world} session={session} holders=1 "
@@ -237,6 +244,20 @@ class ExtendedVerdictTest(unittest.TestCase):
         self.assertLess(early["after_now"] - early["start"], extended.RESOLUTION_PERIOD_TICKS)
         quiet = [report(1, 2, 1000, now) for now in range(1000, 3801, 100)]
         self.assertIsNone(extended.first_periodic_alert(quiet, 1, 2))
+
+    def test_reports_every_20_ticks_catch_an_alert_that_100_tick_reports_let_pass(self):
+        def session(step: int) -> list[str]:
+            lines = [report(1, 2, 1000, 1000), alert(6)]
+            for now in range(1000 + step, 3801, step):
+                if now - 1000 > 2340 and not any("holding" in line for line in lines[2:]):
+                    lines.append(alert(6))  # 60 ticks early
+                lines.append(report(1, 2, 1000, now))
+            return lines
+
+        coarse = extended.first_periodic_alert(session(100), 1, 2)
+        self.assertGreaterEqual(coarse["after_now"] - coarse["start"], extended.RESOLUTION_PERIOD_TICKS)
+        fine = extended.first_periodic_alert(session(extended.REPORT_TICKS), 1, 2)
+        self.assertLess(fine["after_now"] - fine["start"], extended.RESOLUTION_PERIOD_TICKS)
 
     def test_carrier_lines_record_thread_kind_and_position(self):
         lines = [alert(6, "Render thread"), "[12:00:01] [Server thread/INFO]: [Enderman] holding cleared at (6, 100, 6)."]
