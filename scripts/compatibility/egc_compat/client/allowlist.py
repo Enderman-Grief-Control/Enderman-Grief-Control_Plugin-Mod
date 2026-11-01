@@ -28,6 +28,11 @@ ALLOWED = (
           "offline dummy access token (HTTP 401)", "m10f-controls/<1.21.2-1.21.11>/vanilla"),
     Entry(re.compile(r"\[Download-\d+/ERROR\]: Failed to fetch Realms feature flags$"),
           "offline account; Realms is unreachable without a session", "m10f-controls/<1.21.5-1.21.11>/vanilla"),
+    Entry(re.compile(r"\[Download-\d+/WARN\]: Couldn't look up profile properties for "
+                     r"65729436-d989-3bf2-873a-1675d4ffbc8f$"),
+          "the session server has no profile for the offline player EGCClient's UUID; logged in some sessions only",
+          "dev-1.21-vanilla-negative-a (Loader only, no mod; 10F development) and calib-10f3/client-1.21-bundled-modmenu "
+          "(ui-s1)"),
     Entry(re.compile(r"\[Render thread/WARN\]: Missing sound for event: minecraft:"
                      r"(item\.goat_horn\.play|entity\.goat\.screaming\.horn_break|block\.spawner\.fall)$"),
           "vanilla sound-event warning", "m10f-negative/1.21 and m10f-controls/1.21.2/vanilla"),

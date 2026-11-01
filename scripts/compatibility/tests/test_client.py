@@ -221,11 +221,13 @@ class AllowlistTest(unittest.TestCase):
                  "fabric-networking-api-v1, which is missing!",
                  "[18:51:00] [main/WARN]: Warnings were found!",
                  " - Mod 'other' (other) 1.0 recommends any version of something, which is missing!",
-                 "[18:51:01] [Render thread/ERROR]: Something new"]
+                 "[18:51:01] [Render thread/ERROR]: Something new",
+                 "[18:51:02] [Download-1/WARN]: Couldn't look up profile properties for 65729436-d989-3bf2-873a-1675d4ffbc8f",
+                 "[18:51:02] [Download-1/WARN]: Couldn't look up profile properties for 069a79f4-44e9-4726-a5be-fca90e38aaf5"]
         found = scenario.facts(lines, "EGCClient")
         known, unknown = classify(lines, found.warn_error)
-        self.assertEqual([record["line"] for record in known], [0, 1])
-        self.assertEqual([record["line"] for record in unknown], [3, 5])
+        self.assertEqual([record["line"] for record in known], [0, 1, 6])
+        self.assertEqual([record["line"] for record in unknown], [3, 5, 7])
         self.assertTrue(all(record["shown_by"] for record in known))
 
 

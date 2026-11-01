@@ -633,6 +633,45 @@
         "1.21.11"
       ],
       "pinned_utc": "2026-10-26T01:30:00Z"
+    },
+    "fabric-1.2.1-cand-ecc2579": {
+      "platform": "fabric",
+      "kind": "candidate",
+      "source_commit": "ecc257916f9bc81593ee54df56bbb99895903f89",
+      "filename": "EndermanGriefControl-mc_1.21-fabric-1.2.1.jar",
+      "local_path": "../../test-servers/compat-candidates/fabric-1.2.1-cand-ecc2579/EndermanGriefControl-mc_1.21-fabric-1.2.1.jar",
+      "size": 1112462,
+      "sha256": "0fc408bc6b79f9d0c8949e5b265c3b16c6c94bc786c5e0d2cd54e6da17f97369",
+      "descriptor": {
+        "id": "no-enderman-grief",
+        "version": "1.2.1"
+      },
+      "test_mode": "false",
+      "build": {
+        "method": "local-build",
+        "commands": [
+          [
+            "mvn.CMD",
+            "-B",
+            "-f",
+            "enderman-grief-control-messaging/pom.xml",
+            "install"
+          ],
+          [
+            "fabric-mod/gradlew.bat",
+            "build",
+            "-Pmod_version=1.2.1"
+          ]
+        ],
+        "environment": {
+          "ENDERMAN_GRIEF_TEST_MODE": "false"
+        },
+        "java": "openjdk version \"21.0.9\" 2025-10-21 LTS",
+        "build_tool": "Apache Maven 3.9.6 (bc0240f3c744dd6b6ec2920b3cd08dcc295161ae); Gradle wrapper https://services.gradle.org/distributions/gradle-9.7.1-bin.zip",
+        "built_utc": "2026-11-01T20:46:38Z",
+        "clean_tree": true,
+        "log": "../../test-servers/compat-candidates/fabric-1.2.1-cand-ecc2579.build.log"
+      }
     }
   },
   "targets": {
