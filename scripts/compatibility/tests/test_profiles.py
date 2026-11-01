@@ -150,7 +150,9 @@ class ServerProfileRowTest(unittest.TestCase):
         result = self.run_refusal(row, launcher, REFUSAL_OUTPUT)
         check = result["checks"]["dependency_refusal"]
         self.assertEqual(check["status"], "fail")
-        self.assertIn("project descriptor declares fabric-api in depends", check["reason"])
+        # The reason names what did not hold, so a reader never takes a failed condition as observed.
+        self.assertEqual(check["reason"],
+                         "not a clean refusal; these did not hold: project descriptor declares fabric-api in depends")
 
     def test_a_start_that_reaches_done_fails_the_refusal(self):
         row, launcher = self.make_row("missing-dependency", "fapi-requirement-probe")

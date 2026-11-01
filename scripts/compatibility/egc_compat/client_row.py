@@ -312,7 +312,7 @@ class ClientRow:
                     reports + facts["crash_markers"])
         failed = [assertion["name"] for assertion in check.assertions if not assertion["ok"]]
         if failed:
-            check.finish("fail", f"not a clean refusal: {', '.join(failed)}", "artifact")
+            check.finish("fail", f"not a clean refusal; these did not hold: {', '.join(failed)}", "artifact")
         elif self.sessions and self.sessions[-1]["end_reason"] == "deadline":
             check.finish("blocked", "no refusal within the session limit", "timeout_or_no_observation")
         else:

@@ -3,8 +3,9 @@
 ``client_errors`` passes only when every WARN, ERROR, or FATAL line of a core session matches an
 entry here. An unmatched line makes the check ``unknown``, which blocks a row pass until the line
 is reviewed and, with evidence from a control, added. Paths in ``shown_by`` are relative to the
-ignored ``test-servers/compat-client/runs/`` folder of Substep 10F; "vanilla" controls installed no
-mod at all, and "modmenu-only" controls installed only the row's Mod Menu.
+ignored ``test-servers/compat-client/runs/`` folder of Substep 10F, or, for ``calib-10f3/``, to the
+ignored ``test-servers/compat-runs/``; "vanilla" controls installed no mod at all, and
+"modmenu-only" controls installed only the row's Mod Menu.
 """
 
 from __future__ import annotations
@@ -42,7 +43,8 @@ ALLOWED = (
           follows=re.compile(r"\(adventure-platform-fabric\) \S+ recommends any version of fabric-networking-api-v1")),
     Entry(re.compile(r"\[IO-Worker-\d+/ERROR\]: Couldn't connect to realms$"),
           "title screen with an offline account (extended sessions only; core sessions use quick play)",
-          "m10f-ui/1.21-s1 (no control visits the title screen; 10F3 confirms it with a Loader-only session)"),
+          "m10f-ui/1.21-s1; confirmed with no mod installed by the Loader-only title-screen session "
+          "calib-10f3/client-1.21-title-realms"),
 )
 
 

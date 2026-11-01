@@ -703,7 +703,7 @@ class ServerRow:
             return
         failed = [assertion["name"] for assertion in check.assertions if not assertion["ok"]]
         if failed:
-            check.finish("fail", f"not a clean refusal: {', '.join(failed)}", "artifact")
+            check.finish("fail", f"not a clean refusal; these did not hold: {', '.join(failed)}", "artifact")
         else:
             check.finish()
 
