@@ -13,8 +13,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .acquire import AcquisitionError, CachedFile, HttpLimits, contained, copy_local_pinned, fetch_pinned, hash_file
-from .jarinfo import check_artifact, read_descriptor
+from .acquire import (AcquisitionError, CachedFile, HttpLimits, contained, copy_local_pinned, fetch_pinned, hash_file,
+                      store_generated_pinned)
+from .jarinfo import check_artifact, generated_jar, read_descriptor
 from .manifest import Manifest, Selection
 
 
@@ -40,11 +41,15 @@ def jar_set(manifest: Manifest, selection: Selection, control: bool = False) -> 
 
 def acquire_jar(spec: JarSpec, manifest: Manifest, cache_dir: Path, http: HttpLimits,
                 deadline: float | None) -> CachedFile:
-    """A verified cached copy of a pinned jar, from its URL or its local path."""
+    """A verified cached copy of a pinned jar, from its URL, its local path, or its manifest description."""
     artifact = spec.artifact
     if "url" in artifact:
         return fetch_pinned(artifact["url"], artifact["filename"], cache_dir, manifest.user_agent, http,
                             sha256=artifact["sha256"], size=artifact["size"], deadline=deadline)
+    if "generated" in artifact:
+        return store_generated_pinned(generated_jar(artifact["generated"]), artifact["filename"], cache_dir,
+                                      sha256=artifact["sha256"], size=artifact["size"],
+                                      source="generated from the manifest")
     local = Path(artifact["local_path"])
     if not local.is_absolute():
         local = manifest.path.parent / local

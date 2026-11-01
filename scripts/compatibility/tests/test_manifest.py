@@ -1,8 +1,12 @@
 import copy
+import hashlib
+import io
 import json
 import unittest
+import zipfile
 from pathlib import Path
 
+from egc_compat.jarinfo import generated_jar
 from egc_compat.manifest import (ManifestError, SelectionError, expected_target_keys, load_manifest,
                                  parse_manifest_bytes, select, validate)
 
@@ -263,6 +267,29 @@ class ArtifactKindTest(unittest.TestCase):
         self.assertEqual(validate(data), [])
         candidate["build"] = {"method": "registered", "registered_from": "release-jars/x.jar"}
         self.assertTrue(errors_matching(data, "build: missing registered_utc"))
+
+    def test_generated_fixture_rebuilds_its_pinned_bytes(self):
+        # CI runs this on Linux, so it also shows the bytes do not depend on the host.
+        artifact = committed()["artifacts"]["fapi-requirement-probe"]
+        data = generated_jar(artifact["generated"])
+        self.assertEqual((len(data), hashlib.sha256(data).hexdigest()), (artifact["size"], artifact["sha256"]))
+        with zipfile.ZipFile(io.BytesIO(data)) as jar:
+            descriptor = json.loads(jar.read("fabric.mod.json"))
+        self.assertEqual({field: descriptor[field] for field in artifact["descriptor"]}, artifact["descriptor"])
+        self.assertEqual(descriptor["depends"]["fabric-api"], "*")
+
+    def test_only_a_fixture_is_generated_and_from_one_source(self):
+        data = committed()
+        probe = data["artifacts"]["fapi-requirement-probe"]
+        probe["url"] = "https://example.invalid/probe.jar"
+        self.assertTrue(errors_matching(data, "needs exactly one of url, local_path, or generated"))
+        del probe["url"]
+        probe["generated"]["entry_time"] = "1979-12-31T00:00:00"
+        self.assertTrue(errors_matching(data, "entry_time: must be 1980 or later"))
+        published = data["artifacts"]["fabric-1.2.0"]
+        del published["url"]
+        published["generated"] = probe["generated"]
+        self.assertTrue(errors_matching(data, "artifacts.fabric-1.2.0: only fixture artifacts may be generated"))
 
 
 class SelectionTest(unittest.TestCase):

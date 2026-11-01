@@ -1,7 +1,9 @@
-"""Read the descriptor, test-mode flag, and Mixin configs embedded in a project jar."""
+"""Read the descriptor, test-mode flag, and Mixin configs embedded in a project jar, and build the
+descriptor-only fixture jars the manifest describes instead of storing."""
 
 from __future__ import annotations
 
+import datetime as dt
 import io
 import json
 import zipfile
@@ -31,6 +33,20 @@ def _properties(text: str) -> dict[str, str]:
         key, _separator, value = line.partition("=")
         values[key.strip()] = value.strip()
     return values
+
+
+def generated_jar(spec: dict[str, Any]) -> bytes:
+    """The bytes of a manifest ``generated`` jar: each entry is a JSON object written as
+    ``json.dumps`` text, stored uncompressed at ``entry_time``, so every host rebuilds the pinned bytes."""
+    date_time = dt.datetime.fromisoformat(spec["entry_time"]).timetuple()[:6]
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as jar:
+        for name, content in spec["entries"].items():
+            entry = zipfile.ZipInfo(name, date_time=date_time)
+            entry.create_system = 0  # ZipInfo defaults to 3 off Windows, which would change the bytes
+            entry.external_attr = 0o600 << 16
+            jar.writestr(entry, json.dumps(content), compress_type=zipfile.ZIP_STORED)
+    return buffer.getvalue()
 
 
 def read_descriptor(jar_path: Path, platform: str) -> dict[str, Any]:

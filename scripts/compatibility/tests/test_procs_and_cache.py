@@ -10,7 +10,7 @@ from unittest import mock
 
 from egc_compat import acquire
 from egc_compat.acquire import (AcquisitionError, HttpLimits, contained, copy_local_pinned, download,
-                                fetch_pinned, hash_file, verify_file)
+                                fetch_pinned, hash_file, store_generated_pinned, verify_file)
 from egc_compat.procs import ProcessRegistry
 
 # A parent that starts a long-lived grandchild, reports its PID, then waits.
@@ -116,6 +116,17 @@ class CacheTest(unittest.TestCase):
             self.assertEqual(raised.exception.kind, "hash_mismatch")
             with self.assertRaises(AcquisitionError):
                 verify_file(jar, size=10)
+
+    def test_generated_bytes_that_miss_the_pin_are_never_cached(self):
+        with tempfile.TemporaryDirectory() as root:
+            with self.assertRaises(AcquisitionError) as raised:
+                store_generated_pinned(b"jar bytes", "a.jar", Path(root), sha256="0" * 64, size=9, source="test")
+            self.assertEqual(raised.exception.kind, "hash_mismatch")
+            self.assertFalse((Path(root) / "objects").exists())
+            data = b"jar bytes"
+            stored = store_generated_pinned(data, "a.jar", Path(root), sha256=hashlib.sha256(data).hexdigest(),
+                                            size=len(data), source="test")
+            self.assertEqual(stored.path.read_bytes(), data)
 
     def test_verified_cache_hit_needs_no_network(self):
         with tempfile.TemporaryDirectory() as root:

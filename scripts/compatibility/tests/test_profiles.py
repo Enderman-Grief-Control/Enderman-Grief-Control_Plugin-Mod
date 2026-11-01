@@ -46,6 +46,7 @@ def synthetic_manifest(root: Path) -> Path:
 
     def local(artifact: dict, name: str) -> None:
         artifact.pop("url", None)
+        artifact.pop("generated", None)
         artifact.update(local_path=str(root / name), size=len(jars[name]),
                         sha256=hashlib.sha256(jars[name]).hexdigest())
 

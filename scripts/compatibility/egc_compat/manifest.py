@@ -12,6 +12,7 @@ per mod ID its applicable profiles need, so a run under any profile installs onl
 
 from __future__ import annotations
 
+import datetime as dt
 import hashlib
 import json
 import re
@@ -350,6 +351,24 @@ def _validate_dependency_artifact(errors: list[str], where: str, artifact: dict[
             errors.append(f"{where}.declares.{key}: {error}")
 
 
+def _validate_generated(errors: list[str], where: str, artifact: dict[str, Any], kind: str | None) -> None:
+    """A jar rebuilt from the manifest: only a fixture, with a fixed entry time and JSON-object entries."""
+    if kind != "fixture":
+        errors.append(f"{where}: only fixture artifacts may be generated")
+    spec = artifact["generated"]
+    if not isinstance(spec, dict) or set(spec) != {"entry_time", "entries"}:
+        errors.append(f"{where}.generated: needs exactly entry_time and entries")
+        return
+    try:
+        if dt.datetime.fromisoformat(spec["entry_time"]).year < 1980:  # the zip format's first year
+            errors.append(f"{where}.generated.entry_time: must be 1980 or later")
+    except (TypeError, ValueError):
+        errors.append(f"{where}.generated.entry_time: must be an ISO date and time")
+    entries = spec["entries"]
+    if not isinstance(entries, dict) or not entries or not all(isinstance(v, dict) for v in entries.values()):
+        errors.append(f"{where}.generated.entries: must map each entry name to a JSON object")
+
+
 def _validate_artifact(errors: list[str], where: str, artifact: dict[str, Any], seen_hashes: dict[str, str],
                        artifact_id: str) -> None:
     platform = _require(errors, where, artifact, "platform", str)
@@ -362,14 +381,15 @@ def _validate_artifact(errors: list[str], where: str, artifact: dict[str, Any], 
     if filename is not None and not safe_filename(filename):
         errors.append(f"{where}: filename {filename!r} must be a plain .jar basename "
                       "(no path separators, drive, stream, traversal, or reserved name)")
-    has_url = "url" in artifact
-    has_local = "local_path" in artifact
-    if has_url == has_local:
-        errors.append(f"{where}: needs exactly one of url or local_path")
-    elif has_url:
+    sources = [key for key in ("url", "local_path", "generated") if key in artifact]
+    if len(sources) != 1:
+        errors.append(f"{where}: needs exactly one of url, local_path, or generated")
+    elif sources == ["url"]:
         _require_https(errors, where, artifact, "url")
-    else:
+    elif sources == ["local_path"]:
         _require(errors, where, artifact, "local_path", str)
+    else:
+        _validate_generated(errors, where, artifact, kind)
     _require(errors, where, artifact, "size", int, positive=True)
     sha256 = _require(errors, where, artifact, "sha256", str, SHA256_RE)
     if sha256 is not None:

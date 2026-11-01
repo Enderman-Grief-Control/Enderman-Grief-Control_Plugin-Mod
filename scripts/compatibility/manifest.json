@@ -309,7 +309,23 @@
       "platform": "fabric",
       "kind": "fixture",
       "filename": "requires-fabric-api-probe.jar",
-      "local_path": "fixtures/requires-fabric-api-probe.jar",
+      "generated": {
+        "entry_time": "2026-10-25T17:11:26",
+        "entries": {
+          "fabric.mod.json": {
+            "schemaVersion": 1,
+            "id": "egc-requires-probe",
+            "version": "0.0.0",
+            "name": "Fabric API requirement probe",
+            "environment": "*",
+            "depends": {
+              "fabricloader": ">=0.15.0",
+              "minecraft": "~1.21",
+              "fabric-api": "*"
+            }
+          }
+        }
+      },
       "size": 338,
       "sha256": "3b8758868d7181693199881947d160ccd3a3002ca76de7e6a239dfe503048960",
       "descriptor": {

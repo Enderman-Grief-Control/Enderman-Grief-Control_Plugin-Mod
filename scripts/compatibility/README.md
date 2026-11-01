@@ -142,7 +142,7 @@ A file that is not listed or whose hash differs is rejected. Missing files are a
 
 - **Targets** pin an exact Paper build (with its channel) or an exact Loader and installer launcher, plus the Mojang server jar SHA-1, the Java major version, the client protocol version, and a command adapter. Client targets pin the version JSON URL and SHA-1, the client jar, and their own Loader main class and libraries. Every Fabric target maps each mod ID its profiles install to one `dependency` artifact in `dependencies`; the validator rejects a missing or unused pin, a pin whose descriptor names another mod, one that does not list the row's version, one whose own `minecraft`/`fabricloader` predicates exclude the row or its Loader, and a server and client of one version pinning different Fabric API jars.
 - **Profiles** are declared per platform; each side needs at least one documented profile, and `standard` must cover every side.
-- **Artifacts** are immutable IDs with SHA-256 values. Kinds: `published` (release tag and source commit), `candidate` (source commit and an optional `build` record), `dependency` (Modrinth project and version, game versions, SHA-512, and the jar's declared predicates), and `fixture` (a harness self-test jar with a stated purpose; selectable only by `--artifact`, never a target default, and labeled in results).
+- **Artifacts** are immutable IDs with SHA-256 values. Kinds: `published` (release tag and source commit), `candidate` (source commit and an optional `build` record), `dependency` (Modrinth project and version, game versions, SHA-512, and the jar's declared predicates), and `fixture` (a harness self-test jar with a stated purpose; selectable only by `--artifact`, never a target default, and labeled in results). Each artifact has exactly one source: a `url`, a `local_path`, or, for a fixture only, `generated`. A generated jar is rebuilt from the manifest at run time (JSON entries stored uncompressed at a fixed `entry_time`), so no binary is tracked, and it must reproduce the pinned size and SHA-256 before it is cached.
 
 Notes from pinning, 2026-10-18:
 
@@ -156,7 +156,7 @@ Dependency pins, 2026-10-25 (`pin.py dependencies`): each pin is the newest Modr
 
 - **Fabric API**, on every Fabric server and client row: 0.102.0+1.21, 0.116.17+1.21.1, 0.106.1+1.21.2, 0.114.1+1.21.3, 0.119.4+1.21.4, 0.128.2+1.21.5, 0.128.2+1.21.6, 0.129.0+1.21.7, 0.136.1+1.21.8, 0.134.1+1.21.9, 0.138.4+1.21.10, and 0.141.6+1.21.11.
 - **Mod Menu**, on every client row (re-pinned with provenance; the same jars as the 2026-10-19 pins): 11.0.5 (1.21, 1.21.1), 12.0.1 (1.21.2, 1.21.3), 13.0.4 (1.21.4), 14.0.2 (1.21.5), 15.0.2 (1.21.6-1.21.8), 16.0.1 (1.21.9, 1.21.10), and 17.0.1 (1.21.11).
-- **Fixture:** `fapi-requirement-probe` (`fixtures/requires-fabric-api-probe.jar`) is the descriptor-only jar of the 2026-10-25 Loader probe. It declares `fabric-api` in `depends`, so `missing-dependency` on it is the refusal check's known pass.
+- **Fixture:** `fapi-requirement-probe` is the descriptor-only jar of the 2026-10-25 Loader probe, generated from its manifest entry byte-for-byte (the same SHA-256 as the probe). It declares `fabric-api` in `depends`, so `missing-dependency` on it is the refusal check's known pass.
 
 ## Candidates
 

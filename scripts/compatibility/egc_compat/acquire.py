@@ -231,3 +231,18 @@ def copy_local_pinned(local_path: Path, filename: str, cache_dir: Path, *, sha25
         shutil.copy2(local_path, target)
     verify_file(target, sha256=sha256, size=size)
     return CachedFile(target, sha256, size, str(local_path), False)
+
+
+def store_generated_pinned(data: bytes, filename: str, cache_dir: Path, *, sha256: str, size: int,
+                           source: str) -> CachedFile:
+    """Cache a jar built from its manifest description; bytes that miss the pin are never written."""
+    actual = hashlib.sha256(data).hexdigest()
+    if len(data) != size or actual != sha256:
+        raise AcquisitionError(f"generated {filename} is {len(data)} bytes with SHA-256 {actual}; "
+                               f"pinned {size} bytes with {sha256}", "hash_mismatch")
+    target = _cache_target(cache_dir, filename, sha256, None)
+    if not target.exists():
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+    verify_file(target, sha256=sha256, size=size)
+    return CachedFile(target, sha256, size, source, False)
