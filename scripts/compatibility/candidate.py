@@ -187,7 +187,7 @@ def portable(argv: list[str]) -> list[str]:
         if path.is_absolute() and path.is_relative_to(REPO):
             out.append(path.relative_to(REPO).as_posix())
         elif index == 0:
-            out.append(path.name)
+            out.append(re.split(r"[\\/]", arg)[-1])  # Path.name keeps a Windows path whole on Linux
         else:
             out.append(arg)
     return out
