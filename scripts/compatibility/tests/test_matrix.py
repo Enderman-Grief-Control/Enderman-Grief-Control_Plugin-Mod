@@ -6,9 +6,48 @@ import unittest
 from pathlib import Path
 
 import matrix
+from egc_compat.manifest import load_manifest
 from egc_compat.server_row import redact_rcon_password
 
 SLEEPER = [sys.executable, "-c", "import time; time.sleep(60)"]
+MANIFEST = Path(matrix.__file__).parent / "manifest.json"
+
+
+def run(overall: str) -> dict:
+    return {"overall": overall}
+
+
+class RowVerdictTest(unittest.TestCase):
+    def setUp(self):
+        self.manifest = load_manifest(MANIFEST)
+
+    def verdict(self, side: str, runs: dict, fixture: bool = False) -> str:
+        return matrix.row_verdict(self.manifest, "fabric", side, runs, fixture)
+
+    def test_profile_choice(self):
+        self.assertEqual(matrix.choose_profiles(self.manifest, "fabric", "client", "documented"),
+                         ["standard", "modmenu", "missing-dependency"])
+        self.assertEqual(matrix.choose_profiles(self.manifest, "fabric", "server", "documented"),
+                         ["standard", "missing-dependency"])
+        self.assertEqual(matrix.choose_profiles(self.manifest, "paper", "server", "documented"), ["standard"])
+        self.assertIn("bundled", matrix.choose_profiles(self.manifest, "fabric", "server", "all"))
+        with self.assertRaises(ValueError):
+            matrix.choose_profiles(self.manifest, "fabric", "server", "modmenu")
+
+    def test_a_row_passes_only_when_every_documented_profile_passed(self):
+        passing = {"standard": run("pass"), "missing-dependency": run("pass")}
+        self.assertEqual(self.verdict("server", passing), "pass")
+        self.assertEqual(self.verdict("server", {**passing, "missing-dependency": run("fail")}), "fail")
+        self.assertEqual(self.verdict("server", {"standard": run("pass")}), "incomplete")
+        self.assertEqual(self.verdict("server", {**passing, "standard": run("blocked")}), "blocked")
+
+    def test_undocumented_profiles_never_count(self):
+        runs = {"standard": run("pass"), "missing-dependency": run("pass"), "bundled": run("fail")}
+        self.assertEqual(self.verdict("server", runs), "pass")
+        self.assertEqual(self.verdict("server", {"bundled": run("pass")}), "incomplete")
+
+    def test_fixture_rows_are_labeled_not_judged(self):
+        self.assertEqual(self.verdict("server", {"missing-dependency": run("pass")}, fixture=True), "fixture")
 
 
 class MatrixKillTest(unittest.TestCase):

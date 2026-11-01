@@ -27,7 +27,7 @@ FAILURE_CLASSES = (
     "client_access",
     "unclassified",
 )
-RESULT_SCHEMA_VERSION = 1
+RESULT_SCHEMA_VERSION = 2
 
 SERVER_CHECKS = (
     "startup",
@@ -42,6 +42,15 @@ SERVER_CHECKS = (
     "announcements_cooldown",
 )
 CONTROL_CHECKS = ("startup", "other_mob")
+# A profile that omits a required dependency: Loader must refuse cleanly, naming it.
+REFUSAL_CHECKS = ("dependency_refusal",)
+CLIENT_CORE_CHECKS = (
+    "client_startup",
+    "integrated_world_load",
+    "pickup",
+    "placement",
+    "client_errors",
+)
 CLIENT_CHECKS = (
     "client_startup",
     "integrated_world_load",
@@ -56,6 +65,9 @@ CLIENT_EXTENDED_CHECKS = (
     "world_transition",
     "monitor_state",
 )
+CLIENT_CONTROL_CHECKS = ("client_startup", "integrated_world_load")
+# Harness self-check only: without the project jar, the scenario must see griefing.
+CLIENT_NEGATIVE_CHECKS = ("client_startup", "integrated_world_load", "griefing_observed")
 
 
 def utc_now() -> str:
@@ -215,13 +227,27 @@ def write_result(out_dir: Path, result: dict[str, Any]) -> Path:
 def render_summary(result: dict[str, Any]) -> str:
     selection = result.get("selection") or {}
     artifact = result.get("artifact") or {}
+    profile = result.get("profile") or {}
+    mode = ""
+    if selection.get("negative_control"):
+        mode = " (negative control: harness self-check, never a row result)"
+    elif selection.get("control"):
+        mode = " (control)"
+    jars = [f"`{jar.get('artifact_id')}` ({jar.get('role')}, `{jar.get('installed_sha256')}`)"
+            for jar in profile.get("jars") or []]
+    documented = "documented" if profile.get("documented") else "undocumented: never counts toward a claim"
     lines = [
         f"# Compatibility run {result.get('run_id')}",
         "",
-        f"- Row: `{selection.get('target_key')}`{' (vanilla control)' if selection.get('control') else ''}",
+        f"- Row: `{selection.get('target_key')}`{mode}",
         *([f"- Server under test: Minecraft {selection['server_minecraft']} ({selection.get('server_basis')})"]
           if selection.get("server_minecraft") not in (None, selection.get("minecraft")) else []),
+        *([f"- Install profile: `{profile.get('name')}` ({documented})"] if profile else []),
+        *(["- Fixture artifact: a harness self-test jar; this result never counts toward a claim"]
+          if selection.get("fixture") else []),
         f"- Artifact: `{selection.get('artifact_id')}` installed SHA-256 `{artifact.get('installed_sha256')}`",
+        *([f"- Installed jars: {'; '.join(jars)}"] if jars else []),
+        *([f"- Evidence source: {result['evidence_source']}"] if result.get("evidence_source") else []),
         f"- Overall: **{result.get('overall')}**"
         + (f" ({result.get('failure_class')})" if result.get("failure_class") else ""),
         f"- Started/ended (UTC): {result.get('started_utc')} / {result.get('ended_utc')}",
@@ -230,7 +256,8 @@ def render_summary(result: dict[str, Any]) -> str:
         "| Check | Status | Reason |",
         "| --- | --- | --- |",
     ]
-    for name, check in result.get("checks", {}).items():
+    checks = {**result.get("checks", {}), **result.get("extended_checks", {})}
+    for name, check in checks.items():
         reason = str(check.get("reason", "")).replace("|", "\\|").replace("\n", " ")
         status = check.get("status")
         if check.get("failure_class"):

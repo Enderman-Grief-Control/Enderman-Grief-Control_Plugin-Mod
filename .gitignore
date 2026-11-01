@@ -18,6 +18,8 @@ out/
 
 # === VS Code ===
 .vscode/
+# Java extension's background build output (e.g. fabric-mod/bin/main)
+bin/
 
 # === Eclipse / generic Java IDEs (just in case) ===
 .classpath

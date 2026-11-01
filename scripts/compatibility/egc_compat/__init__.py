@@ -5,4 +5,4 @@ from the reviewed lock manifest and writes a ``result.json`` plus a short summar
 or timeout. See ``scripts/compatibility/README.md``.
 """
 
-RUNNER_VERSION = "0.1.0"
+RUNNER_VERSION = "0.2.0"

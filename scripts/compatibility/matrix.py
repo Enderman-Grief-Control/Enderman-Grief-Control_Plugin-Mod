@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""Run several independent rows of one platform/side and collate their results.
+"""Run several independent rows of one platform/side, under one or more install profiles.
 
-Each row is a separate run.py invocation with its own output directory, so a failed or blocked
-row never stops or alters the others, and every row stays replayable on its own.
+Each run is a separate run.py invocation with its own output directory (<out>/<version>/<profile>),
+so a failed or blocked run never stops or alters the others, and every run stays replayable on its
+own. A row's verdict is "pass" only when every documented profile for that side ran and passed;
+results under undocumented profiles are listed but never count, and a fixture artifact's rows are
+labeled "fixture" rather than given a verdict that could support a claim.
 
 Example:
-  python scripts/compatibility/matrix.py --platform paper --side server \\
-      --out test-servers/compat-runs/paper-1.2.0-matrix
+  python scripts/compatibility/matrix.py --platform fabric --side server --profiles documented \\
+      --out test-servers/compat-runs/fabric-server-matrix
 """
 
 from __future__ import annotations
@@ -20,7 +23,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
-from egc_compat.manifest import MINECRAFT_VERSIONS  # noqa: E402
+from egc_compat.manifest import (DEFAULT_PROFILE, MINECRAFT_VERSIONS, Manifest, ManifestError,  # noqa: E402
+                                 load_manifest)
 from egc_compat.procs import kill_tree  # noqa: E402
 from egc_compat.server_row import redact_rcon_password  # noqa: E402
 
@@ -52,12 +56,13 @@ def run_row(command: list[str], timeout_s: float, row_out: Path) -> tuple[int | 
 
 
 def row_record(minecraft: str, out: Path, row_out: Path, code: int | None, problem: str | None) -> dict:
-    """Summarize one row from its result.json; a row without one is blocked, never passed."""
+    """Summarize one run from its result.json; a run without one is blocked, never passed."""
     result_path = row_out / "result.json"
     if result_path.exists():
         result = json.loads(result_path.read_text(encoding="utf-8"))
+        checks = {**result.get("checks", {}), **result.get("extended_checks", {})}
         return {"minecraft": minecraft, "overall": result["overall"], "failure_class": result.get("failure_class"),
-                "checks": {name: check["status"] for name, check in result["checks"].items()},
+                "checks": {name: check["status"] for name, check in checks.items()},
                 "result": str(result_path.relative_to(out))}
     note = (f"run.py exited {code} without a result" if code is not None
             else "killed at the outer row limit before writing a result")
@@ -65,18 +70,72 @@ def row_record(minecraft: str, out: Path, row_out: Path, code: int | None, probl
             "checks": {}, "result": None, "note": f"{note}; {problem}" if problem else note}
 
 
+def choose_profiles(manifest: Manifest, platform: str, side: str, spec: str) -> list[str]:
+    """``documented``, ``all``, or a comma-separated list of profile names for this side."""
+    applicable = manifest.profiles(platform, side)
+    if spec == "documented":
+        return [profile.name for profile in applicable if profile.documented]
+    if spec == "all":
+        return [profile.name for profile in applicable]
+    names = [name.strip() for name in spec.split(",") if name.strip()]
+    unknown = [name for name in names if name not in {profile.name for profile in applicable}]
+    if unknown or not names:
+        raise ValueError(f"no {platform} {side} profile named {', '.join(unknown) or spec!r}; expected "
+                         f"documented, all, or some of {', '.join(profile.name for profile in applicable)}")
+    return names
+
+
+def row_verdict(manifest: Manifest, platform: str, side: str, runs: dict[str, dict], fixture: bool) -> str:
+    """Pass only when every documented profile for the side ran and passed."""
+    if fixture:
+        return "fixture"
+    documented = [profile.name for profile in manifest.profiles(platform, side, documented_only=True)]
+    missing = [name for name in documented if name not in runs]
+    outcomes = [runs[name]["overall"] for name in documented if name in runs]
+    for status in ("fail", "blocked", "unknown"):
+        if status in outcomes:
+            return status
+    return "incomplete" if missing else "pass"
+
+
+def render(platform: str, side: str, profiles: list[str], rows: list[dict]) -> list[str]:
+    header = f"| Minecraft | Verdict | {' | '.join(profiles)} |"
+    lines = [f"# {platform}/{side} matrix", "",
+             "Verdict: pass only when every documented profile ran and passed; undocumented profiles never count.",
+             "", header, "|" + " --- |" * (len(profiles) + 2)]
+    for row in rows:
+        cells = []
+        for name in profiles:
+            run = row["runs"].get(name) or {}
+            cells.append(f"{run.get('overall', '')}"
+                         + (f" ({run['failure_class']})" if run.get("failure_class") else ""))
+        lines.append(f"| {row['minecraft']} | {row['verdict']} | {' | '.join(cells)} |")
+    return lines
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--manifest", type=Path, default=HERE / "manifest.json")
     parser.add_argument("--platform", required=True, choices=("paper", "fabric"))
     parser.add_argument("--side", default="server", choices=("server", "client"))
     parser.add_argument("--minecraft", nargs="+", choices=MINECRAFT_VERSIONS, default=list(MINECRAFT_VERSIONS))
     parser.add_argument("--artifact", help="manifest artifact ID for every row")
-    parser.add_argument("--out", type=Path, required=True, help="fresh directory; each row writes <out>/<version>")
+    parser.add_argument("--profiles", default=DEFAULT_PROFILE,
+                        help="documented, all, or comma-separated profile names (default %(default)s)")
+    parser.add_argument("--out", type=Path, required=True, help="fresh directory; each run writes <out>/<version>/<profile>")
     parser.add_argument("--row-timeout", type=float, default=1500,
-                        help="outer limit per row in seconds (the row's own limit is 1200s plus cleanup)")
+                        help="outer limit per run in seconds (the run's own limit is 1200s plus cleanup)")
     parser.add_argument("run_args", nargs=argparse.REMAINDER, help="extra run.py arguments after --")
     args = parser.parse_args()
 
+    try:
+        manifest = load_manifest(args.manifest)
+        profiles = choose_profiles(manifest, args.platform, args.side, args.profiles)
+    except (ManifestError, ValueError) as error:
+        print(f"invalid: {error}", file=sys.stderr)
+        return 2
+    artifact = manifest.data["artifacts"].get(args.artifact) if args.artifact else None
+    fixture = bool(artifact and artifact.get("kind") == "fixture")
     out = args.out.resolve()
     if out.exists() and any(out.iterdir()):
         print(f"--out {out} is not empty", file=sys.stderr)
@@ -85,23 +144,26 @@ def main() -> int:
     extra = args.run_args[1:] if args.run_args[:1] == ["--"] else args.run_args
     rows = []
     for minecraft in args.minecraft:
-        row_out = out / minecraft
-        command = [sys.executable, str(HERE / "run.py"), "--platform", args.platform, "--side", args.side,
-                   "--minecraft", minecraft, "--out", str(row_out), *extra]
-        if args.artifact:
-            command += ["--artifact", args.artifact]
-        print(f"=== {args.platform}/{args.side}/{minecraft}", flush=True)
-        code, problem = run_row(command, args.row_timeout, row_out)
-        rows.append(row_record(minecraft, out, row_out, code, problem))
-    (out / "matrix.json").write_text(json.dumps({"platform": args.platform, "side": args.side, "rows": rows},
-                                                indent=2) + "\n", encoding="utf-8")
-    lines = [f"# {args.platform}/{args.side} matrix", "", "| Minecraft | Overall | Failure class | Result |",
-             "| --- | --- | --- | --- |"]
-    lines += [f"| {row['minecraft']} | {row['overall']} | {row['failure_class'] or ''} | {row['result'] or row.get('note')} |"
-              for row in rows]
+        runs = {}
+        for profile in profiles:
+            row_out = out / minecraft / profile
+            command = [sys.executable, str(HERE / "run.py"), "--manifest", str(args.manifest.resolve()),
+                       "--platform", args.platform, "--side", args.side, "--minecraft", minecraft,
+                       "--profile", profile, "--out", str(row_out), *extra]
+            if args.artifact:
+                command += ["--artifact", args.artifact]
+            print(f"=== {args.platform}/{args.side}/{minecraft} profile {profile}", flush=True)
+            code, problem = run_row(command, args.row_timeout, row_out)
+            runs[profile] = row_record(minecraft, out, row_out, code, problem)
+        rows.append({"minecraft": minecraft, "verdict": row_verdict(manifest, args.platform, args.side, runs, fixture),
+                     "runs": runs})
+    (out / "matrix.json").write_text(json.dumps({
+        "platform": args.platform, "side": args.side, "artifact": args.artifact, "fixture": fixture,
+        "profiles": profiles, "manifest_sha256": manifest.sha256, "rows": rows}, indent=2) + "\n", encoding="utf-8")
+    lines = render(args.platform, args.side, profiles, rows)
     (out / "matrix-summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))
-    return 0 if all(row["overall"] == "pass" for row in rows) else 1
+    return 0 if all(row["verdict"] == "pass" for row in rows) else 1
 
 
 if __name__ == "__main__":

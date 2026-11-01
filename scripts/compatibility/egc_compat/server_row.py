@@ -1,9 +1,10 @@
 """Run one dedicated-server row end to end.
 
-Stages: acquire pinned downloads, install the exact artifact into a fresh localhost-only
-workspace, start the server, connect RCON and two protocol clients, build a controlled arena,
-run the behavior checks, restart once for persistence, then stop and record evidence. A result is
-written even when a stage crashes, times out, or is interrupted.
+Stages: acquire pinned downloads, install the selected profile's exact jars into a fresh
+localhost-only workspace, start the server, connect RCON and two protocol clients, build a
+controlled arena, run the behavior checks, restart once for persistence, then stop and record
+evidence. A profile that expects Loader to refuse a missing dependency runs only the refusal stage.
+A result is written even when a stage crashes, times out, or is interrupted.
 """
 
 from __future__ import annotations
@@ -16,48 +17,35 @@ import shutil
 import subprocess
 import threading
 import time
-from dataclasses import dataclass, fields
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-from . import RUNNER_VERSION
-from .acquire import (AcquisitionError, HttpLimits, contained, copy_local_pinned, fetch_pinned, fs_path,
-                      hash_file)
+from . import RUNNER_VERSION, loader_log
+from .acquire import AcquisitionError, HttpLimits, fetch_pinned, fs_path, hash_file
+from .arena import (ARENA_MAX, ARENA_MIN, ARENA_SPAWN, CLIENT_SPOT, FORCELOAD, GRASS, HOLDER_BLOCK,  # noqa: F401
+                    REFERENCE_DY, SHEEP_GRASS, SHEEP_MAX, SHEEP_MIN, SHEEP_SPAWN, WORLD_TIME, box, in_box, pos)
 from .bot import BotClient, client_preflight
 from .install_check import verify_install
-from .jarinfo import check_artifact, fabric_mod_tree
+from .jarinfo import read_descriptor
+from .limits import LimitSet
+from .loader_log import MIXIN_ERROR
 from .manifest import Manifest, Selection
 from .platforms import (CHAT_ALERT, CHAT_CLEARED, CHAT_DENIED, DONE_RE, Command, Platform,
                         platform_for)
 from .procs import Line, ManagedProcess, ProcessRegistry, allocate_port
+from .profiles import acquire_jar, install_jars, jar_set, jar_set_assertions, profile_record
 from .ratelimit import Announcement, evaluate
 from .rcon import RconClient, RconError
-from .results import CONTROL_CHECKS, SERVER_CHECKS, Check, CheckSet, compute_overall, utc_now
+from .results import (CONTROL_CHECKS, REFUSAL_CHECKS, RESULT_SCHEMA_VERSION, SERVER_CHECKS, Check, CheckSet,
+                      compute_overall, utc_now)
 
-# Controlled arena, all inside force-loaded chunks (0,0) and (1,0) of a flat world, far above
-# the natural surface. A glass shell keeps the Enderman inside, blocks sky light, and leaves
-# grass as the only holdable block it can reach. An identical copy built REFERENCE_DY higher
-# lets one `execute if blocks` query prove that nothing in the arena changed.
-ARENA_MIN = (4, 99, 4)
-ARENA_MAX = (12, 105, 12)
-REFERENCE_DY = 12
-ARENA_SPAWN = "8.5 100 8.5"
-HOLDER_BLOCK = (8, 100, 8)
-GRASS = ((6, 100, 6), (8, 100, 6), (10, 100, 6), (6, 100, 8),
-         (10, 100, 8), (6, 100, 10), (8, 100, 10), (10, 100, 10))
-SHEEP_MIN = (18, 98, 6)
-SHEEP_MAX = (22, 102, 10)
-SHEEP_GRASS = tuple((x, 99, z) for x in (19, 20, 21) for z in (7, 8, 9))
-SHEEP_SPAWN = "20.5 100 8.5"
-CLIENT_SPOT = "14.5 102 8.5"
 # Creative, not spectator: Paper's entity activation range does not keep mobs near a spectator
 # fully active (a sheep next to one never ate grass), while Endermen cannot target a creative
 # player and sheep are not tempted by an empty-handed one.
 CLIENT_GAMEMODE = "creative"
-FORCELOAD = "forceload add 0 0 31 15"
 OP_NAME = "CompatOp"
 GUEST_NAME = "CompatGuest"
-WORLD_TIME = 18000  # midnight: Endermen do not teleport away from the arena at night
 # A denial meant to be held back by the cooldown must be logged at least this long before the
 # cooldown ends, counted from when the clients received the first announcement.
 COOLDOWN_MARGIN_S = 2.0
@@ -66,12 +54,6 @@ COOLDOWN_MARGIN_S = 2.0
 TEST_PASSED = re.compile(r"^Test passed(?:(?:, count|\. Count): (\d+))?\.?$")
 GAMETIME = re.compile(r"The time is (\d+)")
 GAMERULE_VALUE = re.compile(r"(true|false|-?\d+)\s*\.?$")
-MIXIN_ERROR = re.compile(r"(MixinApplyError|InvalidInjectionException|InvalidMixinException|"
-                         r"Critical injection failure|Mixin apply for mod \S+ failed|"
-                         r"Mixin transformation of \S+ failed|MixinTransformerError|"
-                         r"@Shadow \S+ .{0,200}?was not located)")
-FABRIC_RESOLUTION_ERROR = re.compile(r"(Incompatible mods found|Mod resolution failed|"
-                                     r"requires .* which is missing|Some of your mods are incompatible)")
 RCON_READY = re.compile(r"RCON running on")
 RCON_PASSWORD_LINE = re.compile(r"^rcon\.password=[^\r\n]*", re.M)
 
@@ -84,7 +66,7 @@ class StageBlocked(Exception):
 
 
 @dataclass
-class Limits:
+class Limits(LimitSet):
     http_connect_s: float = 15
     http_read_s: float = 60
     http_retries: int = 2
@@ -101,33 +83,7 @@ class Limits:
     settle_s: float = 1.0
     row_s: float = 1200
     stop_s: float = 30
-
-    @classmethod
-    def from_overrides(cls, overrides: list[str]) -> tuple["Limits", dict[str, Any]]:
-        limits = cls()
-        applied: dict[str, Any] = {}
-        known = {field.name: field.type for field in fields(cls)}
-        for override in overrides:
-            key, separator, raw = override.partition("=")
-            if not separator or key not in known:
-                raise ValueError(f"unknown limit override {override!r}; known: {', '.join(known)}")
-            value: Any = int(raw) if known[key] in (int, "int") else float(raw)
-            if value <= 0:
-                raise ValueError(f"limit {key} must be positive")
-            setattr(limits, key, value)
-            applied[key] = value
-        return limits, applied
-
-    def to_json(self) -> dict[str, Any]:
-        return {field.name: getattr(self, field.name) for field in fields(self)}
-
-
-def in_box(coords: tuple[int, int, int], low: tuple[int, int, int], high: tuple[int, int, int]) -> bool:
-    return all(lo <= value <= hi for value, lo, hi in zip(coords, low, high))
-
-
-def box(low: tuple[int, int, int], high: tuple[int, int, int]) -> str:
-    return " ".join(str(value) for value in (*low, *high))
+    refusal_s: float = 90
 
 
 def redact_rcon_password(properties: Path) -> bool:
@@ -139,10 +95,6 @@ def redact_rcon_password(properties: Path) -> bool:
     if redacted != text:
         properties.write_bytes(redacted.encode("utf-8"))
     return redacted != text
-
-
-def pos(coords: tuple[int, int, int]) -> str:
-    return " ".join(str(value) for value in coords)
 
 
 def java_identity(java: str) -> dict[str, Any]:
@@ -192,7 +144,15 @@ class ServerRow:
         self.adapter = manifest.adapter(self.target["adapter"])
         self.http = HttpLimits(limits.http_connect_s, limits.http_read_s, limits.http_retries)
         self.registry = ProcessRegistry()
-        self.checks = CheckSet(CONTROL_CHECKS if control else SERVER_CHECKS)
+        self.profile = selection.profile
+        self.jar_specs = jar_set(manifest, selection, control)
+        self.jar_records: list[dict[str, Any]] = []
+        self.refusal = self.profile.refusal_ids is not None and not control
+        if control:
+            names = CONTROL_CHECKS
+        else:
+            names = REFUSAL_CHECKS if self.refusal else SERVER_CHECKS
+        self.checks = CheckSet(names)
         self.setup = Check("world_setup")
         self.run_errors: list[dict[str, Any]] = []
         self.environment: dict[str, Any] = {}
@@ -475,18 +435,10 @@ class ServerRow:
             self.environment["fabric"] = {"loader": target["loader"], "installer": target["installer"],
                                           "launcher_url": target["launcher_url"], "launcher_sha256": cached.sha256,
                                           "launcher_size": cached.size, "from_cache": cached.from_cache}
+        self.jar_sources = {spec.artifact_id: acquire_jar(spec, self.manifest, self.cache_dir, self.http, self.deadline)
+                            for spec in self.jar_specs}
         if not self.control:
-            artifact = self.selection.artifact
-            if "url" in artifact:
-                jar = fetch_pinned(artifact["url"], artifact["filename"], self.cache_dir, user_agent, self.http,
-                                   sha256=artifact["sha256"], size=artifact["size"], deadline=self.deadline)
-            else:
-                local = Path(artifact["local_path"])
-                if not local.is_absolute():
-                    local = self.manifest.path.parent / local
-                jar = copy_local_pinned(local, artifact["filename"], self.cache_dir,
-                                        sha256=artifact["sha256"], size=artifact["size"])
-            paths["artifact"] = jar.path
+            jar = self.jar_sources[self.selection.artifact_id]
             self.artifact_record.update({"source": jar.source, "cached_sha256": jar.sha256, "from_cache": jar.from_cache})
         return paths
 
@@ -532,14 +484,13 @@ class ServerRow:
             self.ports["rcon"] = allocate_port()
         self.write_properties()
         self.seed_install()
+        artifact_dir = self.platform.artifact_dir(self.server_dir)
+        try:
+            self.jar_records = install_jars(self.jar_specs, self.jar_sources, artifact_dir)
+        except AcquisitionError as error:
+            raise StageBlocked(str(error), "harness_or_protocol") from error
         if not self.control:
-            artifact_dir = self.platform.artifact_dir(self.server_dir)
-            artifact_dir.mkdir(parents=True, exist_ok=True)
-            try:
-                installed = contained(artifact_dir, self.selection.artifact["filename"])
-            except AcquisitionError as error:
-                raise StageBlocked(str(error), "harness_or_protocol") from error
-            shutil.copy2(paths["artifact"], installed)
+            installed = artifact_dir / self.selection.artifact["filename"]
             self.artifact_record["installed_path"] = str(installed)
             self.artifact_record["installed_sha256"] = hash_file(installed)
 
@@ -570,19 +521,15 @@ class ServerRow:
         shutil.rmtree(seed, ignore_errors=True)
 
     def verify_artifact(self, check: Check) -> None:
+        """The installed jars are exactly the profile's pinned jars (only its dependencies for a control)."""
         if self.control:
-            check.check("no project artifact installed (vanilla control)", True, "none", "none")
-            return
-        installed = Path(self.artifact_record["installed_path"])
-        expected = self.selection.artifact["sha256"]
-        actual = hash_file(installed)
-        self.artifact_record["installed_sha256"] = actual
-        check.check("installed artifact SHA-256 matches lock", actual == expected, expected, actual)
-        for name, ok, want, got in check_artifact(installed, self.selection.platform, self.selection.artifact):
-            check.check(f"artifact {name}", ok, want, got)
-        others = [path.name for path in self.platform.artifact_dir(self.server_dir).glob("*.jar")
-                  if path.name != installed.name]
-        check.check("only one top-level project artifact", not others, [], others)
+            check.check("no project artifact installed (control)", True, "none", "none")
+        artifact_dir = self.platform.artifact_dir(self.server_dir)
+        for name, ok, want, got in jar_set_assertions(artifact_dir, self.jar_specs, self.jar_records,
+                                                      self.selection.platform):
+            check.check(name, ok, want, got)
+        if not self.control:
+            self.artifact_record["installed_sha256"] = hash_file(artifact_dir / self.selection.artifact["filename"])
 
     # Server lifecycle ------------------------------------------------------------------------
     def start_server(self, run_index: int, check: Check) -> bool:
@@ -675,29 +622,90 @@ class ServerRow:
 
     def classify_startup_failure(self) -> tuple[str, str]:
         lines = [line.text for line in self.server.output.lines()] if self.server else []
-        output = "\n".join(lines)
-        if self.control:
-            return "unclassified", "vanilla control failed to start; diagnose the environment"
         if self.selection.platform == "fabric":
-            # Only the Mixin error lines and their stack context, not the loader's mod listing.
-            context = "\n".join("\n".join(lines[index:index + 8])
-                                for index, text in enumerate(lines) if MIXIN_ERROR.search(text))
-            names: list[str] = []
-            try:
-                for mod in fabric_mod_tree(Path(self.artifact_record["installed_path"])):
-                    names.extend(mod["mixins"])
-            except (OSError, KeyError, ValueError):
-                pass
-            implicated = sorted({name for name in names if name and name in context})
-            if implicated:
-                return "artifact", f"Mixin failure in the artifact's bundled config(s): {', '.join(implicated)}"
-            if FABRIC_RESOLUTION_ERROR.search(output):
-                return "artifact", "Fabric Loader rejected the artifact's declared dependencies"
-        else:
+            jars = loader_log.installed_jars(self.jar_records, self.platform.artifact_dir(self.server_dir))
+            attribution = loader_log.attribute(lines, jars)
+            if attribution is not None:
+                self.state["attribution"] = attribution.to_json()
+                return loader_log.failure_class(attribution, self.control)
+        elif not self.control:
             name = self.selection.artifact["descriptor"]["name"]
-            if re.search(rf"(Could not load|Error occurred while enabling) .*{re.escape(name)}", output):
+            if re.search(rf"(Could not load|Error occurred while enabling) .*{re.escape(name)}", "\n".join(lines)):
                 return "artifact", "Paper reported a plugin load/enable error"
+        if self.control:
+            return "unclassified", "control failed to start; diagnose the environment"
         return "unclassified", "run a --control row to separate environment from artifact failures"
+
+    # Missing-dependency profile ---------------------------------------------------------------
+    def stage_refusal(self) -> None:
+        """Start without the dependency the profile omits; only a clean Loader refusal passes.
+
+        All four must hold: the project descriptor declares each omitted mod ID, the server never
+        reaches Done, Loader logs ``Incompatible mods found!`` naming every omitted ID, and there is
+        no Mixin error or crash report. Startup or any other outcome fails.
+        """
+        check = self.checks["dependency_refusal"].start()
+        java = java_identity(self.java)
+        self.environment["java"] = java
+        if java.get("major") != self.target["java_major"]:
+            check.finish("blocked", f"Java major {java.get('major')} does not match pinned {self.target['java_major']}",
+                         "environment_or_download")
+            return
+        try:
+            paths = self.acquire()
+        except AcquisitionError as error:
+            self.run_error("acquire", str(error), "environment_or_download")
+            check.finish("blocked", f"acquisition failed: {error}", "environment_or_download")
+            return
+        self.ensure_time()
+        self.prepare_workspace(paths)
+        self.verify_artifact(check)
+        if any(not assertion["ok"] for assertion in check.assertions):
+            check.finish("fail", "installed jars do not match the profile", "artifact")
+            return
+        expected = self.profile.refusal_ids or ()
+        installed = Path(self.artifact_record["installed_path"])
+        depends = read_descriptor(installed, "fabric").get("depends") or {}
+        for mod_id in expected:
+            check.check(f"project descriptor declares {mod_id} in depends", mod_id in depends, f"depends.{mod_id}",
+                        depends.get(mod_id))
+        output = self.out_dir / "server-run1.log"
+        command = self.platform.server_command(self.java, self.xmx)
+        self.say(f"starting server (refusal stage): {' '.join(command)}")
+        self.server = self.registry.start("server-run1", command, self.server_dir, output)
+        record: dict[str, Any] = {"run": 1, "command": command, "output": output.name, "pid": self.server.pid,
+                                  "started_utc": utc_now()}
+        self.server_runs.append(record)
+        done = self.server.output.wait_for(DONE_RE, 0, self.limits.refusal_s, abort=lambda: not self.server.running())
+        if done is not None:
+            self.server.send_line("stop")  # the game started: stop it from its console, then judge
+            self.server.wait(self.limits.stop_s)
+        self.server.wait(5)
+        record["done"] = {"line": done[0].text} if done else None
+        lines = [line.text for line in self.server.output.lines()]
+        facts = loader_log.refusal_facts(lines, expected)
+        record["exit_code"] = self.server.exit_code
+        check.observe("Loader refusal facts", **facts, exit_code=self.server.exit_code)
+        check.check("server never reached Done", done is None, "no Done line", done[0].text if done else None)
+        check.check("Loader logged Incompatible mods found!", facts["incompatible_mods_found"], True,
+                    facts["incompatible_mods_found"])
+        for mod_id, line in facts["named"].items():
+            check.check(f"refusal names {mod_id}", line is not None, f"requires ... of {mod_id}, which is missing!",
+                        line)
+        crash_reports = sorted(p.name for p in (self.server_dir / "crash-reports").glob("*")) \
+            if (self.server_dir / "crash-reports").is_dir() else []
+        check.check("no Mixin error", not facts["mixin_errors"], [], facts["mixin_errors"])
+        check.check("no crash report or crash marker", not crash_reports and not facts["crash_markers"], [],
+                    crash_reports + facts["crash_markers"])
+        if self.server.running() and done is None:
+            check.finish("blocked", f"neither Done nor a refusal within {self.limits.refusal_s:g}s",
+                         "timeout_or_no_observation")
+            return
+        failed = [assertion["name"] for assertion in check.assertions if not assertion["ok"]]
+        if failed:
+            check.finish("fail", f"not a clean refusal: {', '.join(failed)}", "artifact")
+        else:
+            check.finish()
 
     # Stages --------------------------------------------------------------------------------
     def stage_startup(self) -> None:
@@ -742,7 +750,7 @@ class ServerRow:
             failure_class, note = self.classify_startup_failure()
             check.check("run 1: server reached Done", False, "Done line", f"exited with code {record.get('exit_code')}")
             self.snapshot_logs(1)
-            check.observe(note)
+            check.observe(note, attribution=self.state.get("attribution"))
             check.finish("fail", f"server exited with code {record.get('exit_code')} before Done; {note}", failure_class)
             raise StageBlocked("startup failed", failure_class)
         self.connect_rcon()
@@ -1202,9 +1210,28 @@ class ServerRow:
         if check is not None:
             self.say(f"{name}: {check.status} - {check.reason}")
 
+    def run_refusal(self) -> dict[str, Any]:
+        try:
+            self.stage_refusal()
+        except StageBlocked as blocked:
+            reason, failure_class = blocked.reason, blocked.failure_class
+            if self.deadline_hit.is_set():
+                reason, failure_class = self.deadline_reason(), "timeout_or_no_observation"
+            self.checks.block_unfinished(f"refusal stage stopped: {reason}", failure_class)
+        except KeyboardInterrupt:
+            self.run_error("run", "interrupted by the operator", "harness_or_protocol")
+            self.checks.block_unfinished("run interrupted", "harness_or_protocol")
+        except Exception as error:  # noqa: BLE001 - every crash must still produce a result
+            self.run_error("run", f"runner exception: {type(error).__name__}: {error}", "harness_or_protocol")
+            self.checks.block_unfinished(f"runner exception: {error}", "harness_or_protocol")
+        return self.finish()
+
     def run(self) -> dict[str, Any]:
-        self.say(f"row {self.selection.key} artifact {'(control)' if self.control else self.selection.artifact_id}")
+        label = "(control)" if self.control else self.selection.artifact_id
+        self.say(f"row {self.selection.key} profile {self.profile.name} artifact {label}")
         self.start_watchdog()
+        if self.refusal:
+            return self.run_refusal()
         try:
             try:
                 self.stage_startup()
@@ -1424,7 +1451,7 @@ class ServerRow:
             **self.artifact_record,
         }
         return {
-            "schema_version": 1,
+            "schema_version": RESULT_SCHEMA_VERSION,
             "run_id": self.run_id,
             "started_utc": self.started_utc,
             "ended_utc": utc_now(),
@@ -1435,7 +1462,10 @@ class ServerRow:
                           "server_minecraft": self.selection.server_minecraft,
                           "server_basis": self.selection.server_basis,
                           "artifact_id": None if self.control else self.selection.artifact_id,
-                          "artifact_overridden": self.selection.artifact_overridden, "control": self.control},
+                          "artifact_overridden": self.selection.artifact_overridden, "control": self.control,
+                          "profile": self.profile.name, "fixture": self.selection.fixture},
+            "evidence_source": "automated",
+            "profile": profile_record(self.selection, self.jar_records, self.control),
             "target_pins": self.target,
             "artifact": artifact,
             "environment": self.environment,
